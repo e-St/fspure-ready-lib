@@ -75,29 +75,26 @@ Directory.Build.props    # turns embed on for the library
 
 ## Local development
 
-**Prerequisites:** .NET **10** SDK.
+**Prerequisites:** .NET **10** SDK, nuget.org access.
 
-By default CI (and `scripts/ci-build-and-assert.sh`) restore **the latest `FSharp.PureAnalyzer`** from **GitHub Packages** for owner **`e-St`** (`https://nuget.pkg.github.com/e-St/index.json`). That feed always needs a token (`packages:read`).
+### Branches
+
+| Branch | Audience | `FSharp.PureAnalyzer` source | Workflow |
+|--------|----------|------------------------------|----------|
+| **`main`** | Customers / docs | **Released** packages on **nuget.org** | `CI` |
+| **`dev`** | Integration testing | **Latest** (incl. prerelease) on **e-St GitHub Packages** | `CI (dev)` |
 
 ```bash
-# From this repository root
-export GITHUB_TOKEN=ghp_...   # fine-grained: Packages Read on e-St/fspure packages, or classic read:packages
+# Customer path (same as main CI)
+export FSPURE_ANALYZER_CHANNEL=release
+# optional pin: export FspureAnalyzerVersion=0.3.2
 dotnet tool restore
-
-# latest from GitHub Packages (default when FspureAnalyzerVersion is unset or "latest")
-export FspureAnalyzerVersion=latest
 bash scripts/ci-build-and-assert.sh
 
-# or pin a version:
-# export FspureAnalyzerVersion=0.3.2
-```
-
-Local nupkg instead of GitHub Packages:
-
-```bash
-mkdir -p artifacts/packages
-# copy FSharp.PureAnalyzer.*.nupkg into artifacts/packages
-export FspureAnalyzerVersion=0.3.2   # must match the nupkg
+# Dev path (unreleased monorepo builds on GitHub Packages)
+export FSPURE_ANALYZER_CHANNEL=github-latest
+export GITHUB_TOKEN=ghp_...   # packages:read
+export FspureAnalyzerVersion=latest
 bash scripts/ci-build-and-assert.sh
 ```
 

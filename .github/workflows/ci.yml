@@ -1,41 +1,32 @@
-# Permanent CI for the fspure-ready-lib sample repository.
-# Always restores the newest FSharp.PureAnalyzer from e-St GitHub Packages
-# (includes prerelease / CI builds published by the monorepo).
+# Customer-facing CI (main / master / PRs into main).
+# Uses released FSharp.PureAnalyzer from nuget.org only.
 name: CI
 
 on:
   push:
     branches: [main, master]
   pull_request:
+    branches: [main, master]
   workflow_dispatch:
     inputs:
       fspure_analyzer_version:
-        description: "FSharp.PureAnalyzer version (use latest for newest GH Packages build)"
-        required: false
-        default: "latest"
-      fspure_analyzer_source:
-        description: "Optional extra NuGet source URL"
+        description: "Released FSharp.PureAnalyzer version (empty = Directory.Packages.props default / nuget.org latest stable if 'latest')"
         required: false
         default: ""
 
 permissions:
   contents: read
-  packages: read
 
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   CONFIGURATION: Release
-  FspureAnalyzerVersion: ${{ github.event.inputs.fspure_analyzer_version || 'latest' }}
+  FSPURE_ANALYZER_CHANNEL: release
   FspureReadyLibVersion: 0.1.0-preview.1
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  # Fail if GitHub Packages cannot be queried (do not silently use nuget.org 0.3.2).
-  REQUIRE_GITHUB_PACKAGES: "1"
 
 jobs:
   build-pack-assert:
-    name: Build, pack, assert embed
+    name: Build, pack, assert embed (nuget.org release)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -46,35 +37,17 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Auth e-St GitHub Packages
-        run: |
-          set -euo pipefail
-          chmod +x scripts/*.sh
-          bash scripts/use-github-packages.sh
-
-      - name: Resolve latest FSharp.PureAnalyzer from GitHub Packages
-        id: analyzer
-        run: |
-          set -euo pipefail
-          VER="$(bash scripts/resolve-fspure-analyzer-version.sh)"
-          echo "version=$VER" >> "$GITHUB_OUTPUT"
-          echo "FspureAnalyzerVersion=$VER" >> "$GITHUB_ENV"
-          echo "Using FSharp.PureAnalyzer $VER (from e-St GitHub Packages)"
-
-      - name: Optional extra package source
-        if: ${{ github.event.inputs.fspure_analyzer_source != '' }}
-        run: |
-          set -euo pipefail
-          dotnet nuget add source "${{ github.event.inputs.fspure_analyzer_source }}" \
-            --name fspure-extra \
-            --configfile NuGet.Config || true
+      - name: Pin analyzer version (optional dispatch override)
+        if: ${{ github.event.inputs.fspure_analyzer_version != '' }}
+        run: echo "FspureAnalyzerVersion=${{ github.event.inputs.fspure_analyzer_version }}" >> "$GITHUB_ENV"
 
       - name: Restore tools (fsharp-analyzers 0.35.0)
         run: dotnet tool restore
 
-      - name: Pack library + assert embedded pure.json + consumer restore
+      - name: Pack + assert embed + consumer diagnostics
         run: |
           set -euo pipefail
+          chmod +x scripts/*.sh
           bash scripts/ci-build-and-assert.sh
 
       - name: Assert nupkg embed
@@ -83,24 +56,19 @@ jobs:
           NUPKG="$(ls artifacts/packages/Fspure.ReadyLib*.nupkg | head -1)"
           bash scripts/assert-nupkg-embed.sh "$NUPKG"
 
-      - name: Upload packages and SARIF
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fspure-ready-lib-artifacts
+          name: fspure-ready-lib-artifacts-release
           path: |
             artifacts/packages/
             artifacts/consumer.sarif
             artifacts/analyzer-stdout.txt
           if-no-files-found: warn
 
-  phase4-gate:
-    name: Phase 4 gate
+  gate:
+    name: Customer CI gate
     runs-on: ubuntu-latest
     needs: build-pack-assert
     steps:
-      - name: Summary
-        run: |
-          echo "fspure-ready-lib CI green:"
-          echo "  - FSharp.PureAnalyzer latest from nuget.pkg.github.com/e-St"
-          echo "  - net10.0 pack + embedded pure.json"
-          echo "  - consumer + fsharp-analyzers diagnostics"
+      - run: echo "main CI green (released FSharp.PureAnalyzer from nuget.org)"

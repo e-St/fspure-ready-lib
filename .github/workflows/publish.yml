@@ -1,5 +1,5 @@
-# Publish a prerelease Fspure.ReadyLib package (nuget.org or GitHub Packages).
-# Builds against the latest FSharp.PureAnalyzer from e-St GitHub Packages by default.
+# Publish a prerelease Fspure.ReadyLib package.
+# Customer publish uses released analyzer from nuget.org (same as main CI).
 name: Publish prerelease
 
 on:
@@ -10,9 +10,9 @@ on:
         required: true
         default: "0.1.0-preview.1"
       fspure_analyzer_version:
-        description: "FSharp.PureAnalyzer version (empty or 'latest' = newest on GitHub Packages)"
+        description: "Released FSharp.PureAnalyzer version (empty = Directory.Packages.props default)"
         required: false
-        default: "latest"
+        default: ""
       destination:
         description: "nuget.org | github | both"
         required: true
@@ -20,16 +20,13 @@ on:
 
 permissions:
   contents: read
-  packages: write # publish Fspure.ReadyLib + read FSharp.PureAnalyzer
+  packages: write
 
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   CONFIGURATION: Release
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  FspureAnalyzerVersion: ${{ github.event.inputs.fspure_analyzer_version || 'latest' }}
-  REQUIRE_GITHUB_PACKAGES: "1"
+  FSPURE_ANALYZER_CHANNEL: release
 
 jobs:
   publish:
@@ -44,32 +41,29 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Auth e-St GitHub Packages
-        run: |
-          set -euo pipefail
-          chmod +x scripts/use-github-packages.sh scripts/resolve-fspure-analyzer-version.sh
-          bash scripts/use-github-packages.sh
-          VER="$(bash scripts/resolve-fspure-analyzer-version.sh)"
-          echo "FspureAnalyzerVersion=$VER" >> "$GITHUB_ENV"
-          echo "Using FSharp.PureAnalyzer $VER"
+      - name: Pin analyzer version (optional)
+        if: ${{ github.event.inputs.fspure_analyzer_version != '' }}
+        run: echo "FspureAnalyzerVersion=${{ github.event.inputs.fspure_analyzer_version }}" >> "$GITHUB_ENV"
 
       - name: Pack
         run: |
           set -euo pipefail
           mkdir -p artifacts/packages
+          chmod +x scripts/*.sh
+          ANALYZER_VERSION="$(bash scripts/resolve-fspure-analyzer-version.sh)"
+          echo "Building against FSharp.PureAnalyzer $ANALYZER_VERSION (release channel)"
           dotnet pack src/Fspure.ReadyLib/Fspure.ReadyLib.fsproj \
             -c ${{ env.CONFIGURATION }} \
             -o artifacts/packages \
             --nologo \
             "/p:Version=${{ github.event.inputs.version }}" \
             "/p:PackageVersion=${{ github.event.inputs.version }}" \
-            "/p:FspureAnalyzerVersion=${FspureAnalyzerVersion}"
+            "/p:FspureAnalyzerVersion=${ANALYZER_VERSION}"
           ls -lh artifacts/packages
 
       - name: Assert embed in nupkg
         run: |
           set -euo pipefail
-          chmod +x scripts/assert-nupkg-embed.sh
           NUPKG="$(ls artifacts/packages/Fspure.ReadyLib*.nupkg | head -1)"
           bash scripts/assert-nupkg-embed.sh "$NUPKG"
 
@@ -89,7 +83,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${NUGET_API_KEY:-}" ]]; then
-            echo "ERROR: NUGET_API_KEY secret is not set on this repository." >&2
+            echo "ERROR: NUGET_API_KEY secret is not set." >&2
             exit 1
           fi
           dotnet nuget push artifacts/packages/*.nupkg \

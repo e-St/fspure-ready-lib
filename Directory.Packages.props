@@ -1,14 +1,13 @@
 <Project>
   <!--
-    FSharp.PureAnalyzer version:
-      - Default empty → scripts/CI resolve "latest" from e-St GitHub Packages
-      - Override: /p:FspureAnalyzerVersion=0.3.2  or  export FspureAnalyzerVersion=...
+    FSharp.PureAnalyzer version defaults:
+      - Customer / main: released version on nuget.org (see below).
+      - Dev branch CI: scripts set FspureAnalyzerVersion to latest GitHub Packages build.
+    Override anytime: /p:FspureAnalyzerVersion=... or env FspureAnalyzerVersion.
   -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
-    <!-- Leave empty in CI so scripts resolve latest from github.com/e-St packages. -->
-    <FspureAnalyzerVersion Condition="'$(FspureAnalyzerVersion)' == ''"></FspureAnalyzerVersion>
-    <!-- Local fallback if property still empty at evaluate time (restore without script). -->
+    <!-- Latest known released analyzer on nuget.org with Phase 3 embed targets. -->
     <FspureAnalyzerVersion Condition="'$(FspureAnalyzerVersion)' == ''">0.3.2</FspureAnalyzerVersion>
     <FspureReadyLibVersion Condition="'$(FspureReadyLibVersion)' == ''">0.1.0-preview.1</FspureReadyLibVersion>
   </PropertyGroup>
