@@ -1,10 +1,7 @@
 # Dev / integration CI — unreleased FSharp.PureAnalyzer from e-St GitHub Packages.
-# Runs on the `dev` branch (and PRs targeting dev). Not the customer-facing path.
 #
-# Package access: GITHUB_TOKEN can only download packages from the same repo by
-# default. Grant this repository access on the FSharp.PureAnalyzer package
-# (GitHub → package → Package settings → Manage Actions access), OR set secret
-# FSPURE_PACKAGES_READ_TOKEN (PAT with packages:read) on fspure-ready-lib.
+# Package access: grant fspure-ready-lib Actions access on the FSharp.PureAnalyzer
+# package, OR set secret FSPURE_PACKAGES_READ_TOKEN (packages:read).
 name: CI (dev)
 
 on:
@@ -12,10 +9,13 @@ on:
     branches: [dev]
   pull_request:
     branches: [dev]
+  # Fired by e-St/fspure after a CI analyzer package is published (avoids race).
+  repository_dispatch:
+    types: [fspure-analyzer-published]
   workflow_dispatch:
     inputs:
       fspure_analyzer_version:
-        description: "Pin a version, or leave 'latest' for newest GitHub Packages build"
+        description: "Leave empty/latest for newest GH Packages build, or pin e.g. 0.3.2-ci.12.abc1234"
         required: false
         default: "latest"
 
@@ -30,7 +30,7 @@ env:
   FSPURE_ANALYZER_CHANNEL: github-latest
   REQUIRE_GITHUB_PACKAGES: "1"
   FspureReadyLibVersion: 0.1.0-preview.1
-  # Prefer a packages-read PAT if set (cross-repo); else Actions GITHUB_TOKEN.
+  # Prefer packages-read PAT (sees monorepo-published packages); else GITHUB_TOKEN.
   GITHUB_TOKEN: ${{ secrets.FSPURE_PACKAGES_READ_TOKEN || secrets.GITHUB_TOKEN }}
   GH_TOKEN: ${{ secrets.FSPURE_PACKAGES_READ_TOKEN || secrets.GITHUB_TOKEN }}
   FSPURE_PACKAGES_READ_TOKEN: ${{ secrets.FSPURE_PACKAGES_READ_TOKEN }}
@@ -42,6 +42,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # repository_dispatch checks out default branch; force dev tip.
+          ref: ${{ github.event_name == 'repository_dispatch' && 'dev' || github.ref }}
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
@@ -54,25 +57,47 @@ jobs:
           chmod +x scripts/*.sh
           bash scripts/use-github-packages.sh
 
-      - name: Resolve analyzer version from GitHub Packages
+      - name: Resolve analyzer (require -ci prerelease)
         id: analyzer
         run: |
           set -euo pipefail
-          # Only pass explicit pins from workflow_dispatch; push events use latest.
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            export FspureAnalyzerVersion="${{ github.event.inputs.fspure_analyzer_version }}"
-          else
-            export FspureAnalyzerVersion=latest
-          fi
           export FSPURE_ANALYZER_CHANNEL=github-latest
           export REQUIRE_GITHUB_PACKAGES=1
+
+          INPUT="${{ github.event.inputs.fspure_analyzer_version }}"
+          DISPATCH_VER="${{ github.event.client_payload.version }}"
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" \
+             && -n "${INPUT}" && "${INPUT}" != "latest" ]]; then
+            export FspureAnalyzerVersion="${INPUT}"
+            export FSPURE_ANALYZER_PINNED=1
+            echo "Dispatch pin: $INPUT"
+          elif [[ "${{ github.event_name }}" == "repository_dispatch" \
+               && -n "${DISPATCH_VER}" ]]; then
+            export FspureAnalyzerVersion="${DISPATCH_VER}"
+            export FSPURE_ANALYZER_PINNED=1
+            echo "repository_dispatch pin: $DISPATCH_VER"
+          else
+            # Critical: do not inherit a release pin from the environment.
+            unset FspureAnalyzerVersion || true
+            export FspureAnalyzerVersion=latest
+            export FSPURE_ANALYZER_PINNED=0
+          fi
+
           VER="$(bash scripts/resolve-fspure-analyzer-version.sh)"
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "FspureAnalyzerVersion=$VER" >> "$GITHUB_ENV"
+          # Pack step may re-call resolve; keep the concrete version.
+          echo "FSPURE_ANALYZER_PINNED=1" >> "$GITHUB_ENV"
+
           echo "### Dev analyzer" >> "$GITHUB_STEP_SUMMARY"
-          echo "Using **FSharp.PureAnalyzer $VER** from GitHub Packages (\`e-St\`)." >> "$GITHUB_STEP_SUMMARY"
-          if [[ "$VER" == "0.3.2" ]]; then
-            echo "::warning::Resolved 0.3.2 only. Publish a newer -ci.* package from e-St/fspure (workflow Publish analyzer to GitHub Packages), and ensure this repo can read the package."
+          echo "Using **FSharp.PureAnalyzer \`$VER\`** from GitHub Packages." >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$VER" == "0.3.2" ]] || [[ "$VER" != *-ci.* ]]; then
+            echo "::error::Need a -ci.* prerelease (got \`$VER\`). nuget.org/mirrored 0.3.2 has no Phase 3 embed targets."
+            echo "1) Ensure e-St/fspure workflow **Publish analyzer to GitHub Packages (CI)** succeeded"
+            echo "2) Grant fspure-ready-lib package Actions access, or set secret FSPURE_PACKAGES_READ_TOKEN"
+            exit 1
           fi
 
       - name: Restore tools
@@ -82,9 +107,10 @@ jobs:
         env:
           FSPURE_ANALYZER_CHANNEL: github-latest
           REQUIRE_GITHUB_PACKAGES: "1"
+          FSPURE_ANALYZER_PINNED: "1"
         run: |
           set -euo pipefail
-          # FspureAnalyzerVersion is already a concrete version from GITHUB_ENV
+          # FspureAnalyzerVersion is the concrete -ci.* version from GITHUB_ENV
           bash scripts/ci-build-and-assert.sh
 
       - name: Assert nupkg embed
@@ -108,4 +134,4 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-pack-assert-dev
     steps:
-      - run: echo "dev CI green (FSharp.PureAnalyzer from GitHub Packages)"
+      - run: echo "dev CI green"

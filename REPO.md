@@ -42,29 +42,24 @@ gh repo create e-St/fspure-ready-lib --public --source=. --remote=origin --push
 ### Dev branch + unreleased analyzer
 
 1. Monorepo workflow **Publish analyzer to GitHub Packages (CI)** publishes `FSharp.PureAnalyzer` as `0.3.2-ci.{run}.{sha}` on each relevant push.
-2. Grant **fspure-ready-lib** access to that package (package → **Package settings** → **Manage Actions access**), **or** set `FSPURE_PACKAGES_READ_TOKEN`.
-3. Satellite **`dev`** runs **CI (dev)** and restores the newest GitHub Packages version.
-4. Satellite **`main`** keeps using **nuget.org** releases only.
+2. That workflow then fires `repository_dispatch` → **CI (dev)** on this satellite (avoids racing the package publish).
+3. Grant **fspure-ready-lib** access to that package (package → **Package settings** → **Manage Actions access**), **or** set `FSPURE_PACKAGES_READ_TOKEN`.
+4. Satellite **`dev`** **requires** a `-ci.*` version (not mirrored `0.3.2`). nuget.org / GH-mirrored `0.3.2` is analyzer-only and **cannot** embed `pure.json`.
+5. Satellite **`main`** keeps using **nuget.org** releases only — **needs a Phase 3+ release** (with `build/` + `tools/purity-collector`). Current nuget.org `0.3.2` will fail the embed assert until that ships.
 
 ## CI expectations
 
-Workflow **CI** must be able to restore **`FSharp.PureAnalyzer`** (with Phase 3 embed targets) from:
-
-- nuget.org (preferred once published), or  
-- workflow_dispatch input `fspure_analyzer_source` + version override  
-
-Until Phase 3 lands on nuget.org, run CI with a pre-seeded feed:
-
-1. Pack FSharp.PureAnalyzer from monorepo  
-2. Host the nupkg on GitHub Packages or a temporary feed  
-3. Pass that source into the workflow_dispatch input  
+| Branch | Analyzer source | What must be true |
+|--------|-----------------|-------------------|
+| **`dev`** | GitHub Packages `-ci.*` | Package has `build/FSharp.PureAnalyzer.targets` + `tools/purity-collector` |
+| **`main`** | nuget.org stable | Same Phase 3 layout once published (not yet in `0.3.2`) |
 
 ## Versioning
 
 | Package | Suggested version |
 |---------|-------------------|
 | `Fspure.ReadyLib` | `0.1.0-preview.N` until stable |
-| `FSharp.PureAnalyzer` | **`main`:** released on nuget.org (`0.3.2`+). **`dev`:** latest on `nuget.pkg.github.com/e-St` |
+| `FSharp.PureAnalyzer` | **`main`:** nuget.org Phase 3+ release. **`dev`:** `0.3.2-ci.*` on `nuget.pkg.github.com/e-St` |
 
 ## What not to put in this repo
 

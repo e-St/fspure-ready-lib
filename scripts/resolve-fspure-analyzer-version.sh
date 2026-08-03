@@ -2,17 +2,14 @@
 # Print the FSharp.PureAnalyzer version to restore.
 #
 # Channels (FSPURE_ANALYZER_CHANNEL):
-#   release        — nuget.org stable pin / latest stable (customer)
-#   github-latest  — most recently published version on e-St GitHub Packages
-#                    (includes -ci.* prereleases from monorepo CI)
+#   release        — nuget.org stable (customer / main)
+#   github-latest  — newest -ci.* build on e-St GitHub Packages (dev)
 #
-# Env:
-#   FspureAnalyzerVersion=x.y.z | latest
-#   FSPURE_ANALYZER_CHANNEL=release|github-latest
-#   REQUIRE_GITHUB_PACKAGES=1
-#   GITHUB_TOKEN or GH_TOKEN (packages:read). For cross-repo reads from
-#   fspure-ready-lib, prefer secret FSPURE_PACKAGES_READ_TOKEN if GITHUB_TOKEN
-#   cannot see packages published by e-St/fspure.
+# On github-latest:
+#   - A bare pin of the release fallback (0.3.2) is IGNORED unless
+#     FSPURE_ANALYZER_PINNED=1 (stale GITHUB_ENV must not block CI packages).
+#   - With REQUIRE_GITHUB_PACKAGES=1, resolution MUST land on a -ci.* version
+#     (nuget.org 0.3.2 and the mirrored GH 0.3.2 lack Phase 3 embed tooling).
 set -euo pipefail
 
 OWNER="${FSPURE_GITHUB_OWNER:-e-St}"
@@ -20,17 +17,36 @@ PKG="FSharp.PureAnalyzer"
 CHANNEL="${FSPURE_ANALYZER_CHANNEL:-release}"
 FALLBACK="${FSPURE_ANALYZER_FALLBACK_VERSION:-0.3.2}"
 REQUIRE="${REQUIRE_GITHUB_PACKAGES:-0}"
+PINNED="${FSPURE_ANALYZER_PINNED:-0}"
 
 log() { echo "$*" >&2; }
 die() { log "ERROR: $*"; exit 1; }
 
+is_ci_prerelease() {
+  [[ "$1" =~ -ci\.[0-9]+ ]]
+}
+
+# ----- honor explicit pin -----
 if [[ -n "${FspureAnalyzerVersion:-}" && "${FspureAnalyzerVersion}" != "latest" ]]; then
-  log "Using explicit pin ${FspureAnalyzerVersion}"
-  echo "${FspureAnalyzerVersion}"
-  exit 0
+  if [[ "$CHANNEL" == "github-latest" && "$PINNED" != "1" ]]; then
+    if [[ "${FspureAnalyzerVersion}" == "$FALLBACK" \
+       || "${FspureAnalyzerVersion}" == "0.3.2" ]] \
+       || ! is_ci_prerelease "${FspureAnalyzerVersion}"; then
+      log "Ignoring non-CI pin ${FspureAnalyzerVersion} on channel=github-latest (set FSPURE_ANALYZER_PINNED=1 to force)."
+      export FspureAnalyzerVersion=latest
+    else
+      log "Using pin ${FspureAnalyzerVersion} (channel=github-latest)"
+      echo "${FspureAnalyzerVersion}"
+      exit 0
+    fi
+  else
+    log "Using explicit pin ${FspureAnalyzerVersion}"
+    echo "${FspureAnalyzerVersion}"
+    exit 0
+  fi
 fi
 
-# ----- release channel (nuget.org) -----
+# ----- release channel -----
 if [[ "$CHANNEL" == "release" ]]; then
   if [[ "${FspureAnalyzerVersion:-}" == "latest" ]]; then
     ver="$(
@@ -59,12 +75,11 @@ if [[ "$CHANNEL" != "github-latest" ]]; then
   die "Unknown FSPURE_ANALYZER_CHANNEL=${CHANNEL}"
 fi
 
-# ----- github-latest -----
-# Prefer a dedicated packages-read token (can see monorepo-published packages).
+# ----- github-latest: query e-St GitHub Packages -----
 TOKEN="${FSPURE_PACKAGES_READ_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-}}}"
 if [[ -z "$TOKEN" ]]; then
   if [[ "$REQUIRE" == "1" ]]; then
-    die "Token required for channel=github-latest (GITHUB_TOKEN or FSPURE_PACKAGES_READ_TOKEN)"
+    die "Token required for github-latest (FSPURE_PACKAGES_READ_TOKEN or GITHUB_TOKEN with packages:read)"
   fi
   log "WARN: no token; fallback ${FALLBACK}"
   echo "$FALLBACK"
@@ -74,24 +89,23 @@ fi
 export GH_TOKEN="$TOKEN"
 export GITHUB_TOKEN="$TOKEN"
 
-# Prefer NuGet v3 query on the GitHub feed (same auth as restore). More reliable
-# than the Packages REST API for cross-repo GITHUB_TOKEN limits.
 query_url="https://nuget.pkg.github.com/${OWNER}/query?q=packageid:${PKG}&prerelease=true&semVerLevel=2.0.0"
-log "Querying ${query_url}"
-qjson="$(
-  curl -fsSL \
+log "Querying GitHub Packages: ${query_url}"
+http_code="$(
+  curl -sS -o /tmp/fspure-nuget-query.json -w "%{http_code}" \
     -H "Authorization: Bearer ${TOKEN}" \
     -H "User-Agent: fspure-ready-lib-ci" \
-    -H "Accept: application/vnd.nuget.v3.query+json, application/json" \
-    "$query_url" 2>/dev/null || true
+    -H "Accept: application/json" \
+    "$query_url" 2>/dev/null || echo "000"
 )"
+log "NuGet query HTTP ${http_code}"
 
 ver=""
-if [[ -n "$qjson" ]]; then
-  ver="$(
-    printf '%s' "$qjson" | python3 -c '
-import json, sys, re
-data = json.load(sys.stdin)
+if [[ "$http_code" == "200" && -s /tmp/fspure-nuget-query.json ]]; then
+  if python3 - <<'PY' >/tmp/fspure-resolve-ver.txt 2>/tmp/fspure-resolve-versions.txt
+import json, re, sys
+with open("/tmp/fspure-nuget-query.json") as f:
+    data = json.load(f)
 names = []
 for d in data.get("data") or []:
     if d.get("id", "").lower() != "fsharp.pureanalyzer":
@@ -104,74 +118,70 @@ for d in data.get("data") or []:
 if not names:
     sys.exit(1)
 
-def semver_key(s: str):
-    m = re.match(r"^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:\.(\d+))?(?:-(.+))?$", s)
-    if not m:
-        return ((0, 0, 0, 0), (0, s))
-    a, b, c, d, pre = m.groups()
-    nums = tuple(int(x or 0) for x in (a, b, c, d))
-    # For github-latest: higher numbers win; among same numbers, prerelease with
-    # higher -ci.N wins over older prerelease; stable loses to a higher -ci of next patch.
-    if pre:
-        # extract trailing run number from ci.123 or ci.123.abc
-        m2 = re.search(r"(\d+)$", pre.replace(".", " ").split()[-1] if False else pre)
-        m2 = re.search(r"(\d+)(?:\D.*)?$", pre)
-        n = int(m2.group(1)) if m2 else 0
-        return (nums, (1, n, pre))  # prerelease marker 1
-    return (nums, (2, 0, ""))  # stable after prereleases of same nums... wait we want newest BUILD
-
-# Actually for "latest build" prefer max by: numeric version, then prefer ANY prerelease
-# with higher ci number over stable of same base, then stable.
-# Simpler: sort by (nums, ci_number, is_stable)
-# 0.3.3-ci.5 > 0.3.2
-# 0.3.2-ci.99 vs 0.3.2: for github-latest prefer higher ci over stable same base
 def key(s: str):
-    m = re.match(r"^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-ci\.(\d+))?(?:[.+].*)?$", s, re.I)
+    # Prefer higher major.minor.patch; among same triple prefer -ci.N over stable.
+    m = re.match(r"^(\d+)\.(\d+)\.(\d+)(?:-ci\.(\d+))?", s, re.I)
     if m:
-        a,b,c,ci = m.groups()
-        nums = (int(a or 0), int(b or 0), int(c or 0))
+        a, b, c, ci = m.groups()
+        nums = (int(a), int(b), int(c))
         if ci is not None:
-            return (nums, 1, int(ci))  # prerelease-ci
-        return (nums, 0, 0)  # stable of that triple — below -ci of same triple? 
-        # For same nums: we want -ci.N > previous -ci, but -ci.N vs stable:
-        # prefer -ci as "newer build" when channel is github-latest: use (nums, 1, ci) > (nums, 0, 0)
-    m = re.match(r"^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-(.+))?$", s)
-    a,b,c,pre = m.groups() if m else (0,0,0,s)
-    nums = (int(a or 0), int(b or 0), int(c or 0))
+            return (nums, 1, int(ci), s)
+        return (nums, 0, 0, s)
+    m = re.match(r"^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$", s)
+    if not m:
+        return ((0, 0, 0), 0, 0, s)
+    a, b, c, pre = m.groups()
+    nums = (int(a), int(b), int(c))
     if pre:
         m2 = re.search(r"(\d+)", pre)
-        return (nums, 1, int(m2.group(1)) if m2 else 0)
-    return (nums, 0, 0)
+        return (nums, 1, int(m2.group(1)) if m2 else 0, s)
+    return (nums, 0, 0, s)
 
-print(sorted(set(names), key=key)[-1])
-' 2>/dev/null || true
-  )"
+uniq = sorted(set(names), key=key)
+ci = [v for v in uniq if re.search(r"-ci\.\d+", v, re.I)]
+print("FOUND:" + ",".join(uniq[-12:]), file=sys.stderr)
+print("CI:" + (",".join(ci[-8:]) if ci else "(none)"), file=sys.stderr)
+# For github-latest always prefer a -ci prerelease when any exist.
+if ci:
+    print(sorted(ci, key=key)[-1])
+else:
+    print(uniq[-1])
+PY
+  then
+    ver="$(tr -d '[:space:]' </tmp/fspure-resolve-ver.txt)"
+  fi
+  if [[ -f /tmp/fspure-resolve-versions.txt ]]; then
+    while IFS= read -r line; do log "$line"; done < /tmp/fspure-resolve-versions.txt
+  fi
 fi
 
-# REST Packages API as second try (org then user); pick by updated_at then version
-if [[ -z "${ver:-}" ]]; then
-  log "NuGet query empty; trying Packages REST API..."
+# Packages REST API fallback (by updated_at) — often 403 for GITHUB_TOKEN across repos
+if [[ -z "${ver:-}" ]] && command -v gh >/dev/null 2>&1; then
+  log "Trying Packages REST API (org/user)..."
   for path in \
     "/orgs/${OWNER}/packages/nuget/${PKG}/versions?per_page=100" \
     "/users/${OWNER}/packages/nuget/${PKG}/versions?per_page=100"
   do
     json="$(gh api "$path" 2>/dev/null || true)"
+    log "REST ${path} -> $( [[ -n "$json" && "$json" != "[]" ]] && echo ok || echo empty )"
     if [[ -z "$json" || "$json" == "[]" ]]; then
       continue
     fi
     ver="$(
       printf '%s' "$json" | python3 -c '
-import json, sys
+import json, sys, re
 data = json.load(sys.stdin)
 if not data:
     sys.exit(1)
-# most recently updated first
-data = sorted(data, key=lambda v: v.get("updated_at") or v.get("created_at") or "", reverse=True)
-print(data[0]["name"])
-' 2>/dev/null || true
+ci = [v for v in data if re.search(r"-ci\.\d+", v.get("name") or "", re.I)]
+pool = ci if ci else data
+pool = sorted(pool, key=lambda v: v.get("updated_at") or v.get("created_at") or "", reverse=True)
+print("FOUND:" + ",".join(v.get("name","") for v in pool[:10]), file=sys.stderr)
+print(pool[0]["name"])
+' 2>/tmp/fspure-resolve-versions.txt || true
     )"
     if [[ -n "${ver:-}" ]]; then
-      log "Listed via REST ${path}"
+      log "$(cat /tmp/fspure-resolve-versions.txt 2>/dev/null || true)"
       break
     fi
   done
@@ -179,12 +189,27 @@ fi
 
 if [[ -z "${ver:-}" ]]; then
   if [[ "$REQUIRE" == "1" ]]; then
-    die "Could not list ${PKG} on GitHub Packages for ${OWNER}. Publish CI packages from e-St/fspure, and grant this repo packages:read (or set FSPURE_PACKAGES_READ_TOKEN)."
+    die "No ${PKG} versions on GitHub Packages for ${OWNER}. Publish from e-St/fspure (workflow: Publish analyzer to GitHub Packages), and grant this workflow packages:read (package Actions access or FSPURE_PACKAGES_READ_TOKEN)."
   fi
   log "WARN: fallback ${FALLBACK}"
   echo "$FALLBACK"
   exit 0
 fi
 
-log "Resolved ${PKG} ${ver} from GitHub Packages (${OWNER}) [channel=github-latest]"
+# Hard requirement: dev channel needs a Phase 3 CI prerelease, not the old 0.3.2 mirror.
+if [[ "$REQUIRE" == "1" && "$PINNED" != "1" ]]; then
+  if ! is_ci_prerelease "$ver"; then
+    die "Resolved ${ver} but no -ci.* prerelease is visible on GitHub Packages yet.
+  - Wait for monorepo workflow 'Publish analyzer to GitHub Packages (CI)' to finish
+  - Or grant package Actions access / set FSPURE_PACKAGES_READ_TOKEN
+  - Newest query result was: ${ver}
+  nuget.org and mirrored ${FALLBACK} lack build/ embed targets (no pure.json)."
+  fi
+fi
+
+if [[ "$ver" == "0.3.2" || "$ver" == "$FALLBACK" ]]; then
+  log "WARN: newest GitHub Packages version is ${ver} (no -ci.* build found yet)."
+fi
+
+log "Resolved ${PKG} ${ver} [channel=github-latest owner=${OWNER}]"
 echo "$ver"

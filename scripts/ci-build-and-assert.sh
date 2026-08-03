@@ -2,8 +2,8 @@
 # Build + pack Fspure.ReadyLib, assert embedded pure.json, restore consumer.
 #
 # Channels (FSPURE_ANALYZER_CHANNEL):
-#   release (default)  — nuget.org released FSharp.PureAnalyzer (customer path)
-#   github-latest      — newest e-St GitHub Packages build (dev path)
+#   release (default)  — nuget.org released FSharp.PureAnalyzer (customer / main)
+#   github-latest      — newest e-St GitHub Packages -ci.* build (dev)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -20,10 +20,21 @@ chmod +x scripts/*.sh 2>/dev/null || true
 echo "==> Analyzer channel: ${CHANNEL}"
 
 if [[ "$CHANNEL" == "github-latest" ]]; then
-  if [[ -n "${GITHUB_TOKEN:-${GH_TOKEN:-}}" ]]; then
+  # Never keep a customer release pin in the environment for the dev channel
+  # unless the resolve step explicitly pinned a concrete -ci.* version.
+  if [[ "${FSPURE_ANALYZER_PINNED:-0}" != "1" ]]; then
+    if [[ -z "${FspureAnalyzerVersion:-}" \
+       || "${FspureAnalyzerVersion}" == "latest" \
+       || "${FspureAnalyzerVersion}" == "0.3.2" \
+       || "${FspureAnalyzerVersion}" == "${FSPURE_ANALYZER_FALLBACK_VERSION:-0.3.2}" \
+       || "${FspureAnalyzerVersion}" != *-ci.* ]]; then
+      export FspureAnalyzerVersion=latest
+    fi
+  fi
+  if [[ -n "${GITHUB_TOKEN:-${GH_TOKEN:-${FSPURE_PACKAGES_READ_TOKEN:-}}}" ]]; then
     bash scripts/use-github-packages.sh
   elif [[ "${REQUIRE_GITHUB_PACKAGES:-0}" == "1" ]]; then
-    echo "ERROR: GITHUB_TOKEN required for channel=github-latest" >&2
+    echo "ERROR: GITHUB_TOKEN or FSPURE_PACKAGES_READ_TOKEN required for channel=github-latest" >&2
     exit 1
   fi
 fi
@@ -32,14 +43,54 @@ ANALYZER_VERSION="$(bash scripts/resolve-fspure-analyzer-version.sh)"
 export FspureAnalyzerVersion="$ANALYZER_VERSION"
 echo "==> Using FSharp.PureAnalyzer $ANALYZER_VERSION"
 
+if [[ "$CHANNEL" == "github-latest" && "${REQUIRE_GITHUB_PACKAGES:-0}" == "1" ]]; then
+  if [[ "$ANALYZER_VERSION" == "0.3.2" || "$ANALYZER_VERSION" != *-ci.* ]]; then
+    echo "ERROR: channel=github-latest requires a -ci.* package (got $ANALYZER_VERSION)." >&2
+    echo "nuget.org and mirrored 0.3.2 have no build/ embed targets." >&2
+    exit 1
+  fi
+fi
+
 echo "==> Pack Fspure.ReadyLib $VERSION"
+# On github-latest, prefer restoring the analyzer from the github-e-st source first.
+RESTORE_ARGS=()
+if [[ "$CHANNEL" == "github-latest" ]]; then
+  RESTORE_ARGS+=(
+    "/p:RestoreAdditionalProjectSources=https://nuget.pkg.github.com/e-St/index.json"
+  )
+fi
+
 dotnet pack src/Fspure.ReadyLib/Fspure.ReadyLib.fsproj \
   -c "$CONFIGURATION" \
   -o "$PKG_DIR" \
   --nologo \
+  -v minimal \
   "/p:Version=$VERSION" \
   "/p:PackageVersion=$VERSION" \
-  "/p:FspureAnalyzerVersion=$ANALYZER_VERSION"
+  "/p:FspureAnalyzerVersion=$ANALYZER_VERSION" \
+  "${RESTORE_ARGS[@]+"${RESTORE_ARGS[@]}"}"
+
+# Prove the restored analyzer package contains Phase 3 embed tooling.
+GPF="${NUGET_PACKAGES:-$HOME/.nuget/packages}"
+AN_PKG="$GPF/fsharp.pureanalyzer/$ANALYZER_VERSION"
+echo "==> Inspect analyzer package $AN_PKG"
+if [[ ! -d "$AN_PKG" ]]; then
+  echo "ERROR: package folder missing after restore: $AN_PKG" >&2
+  find "$GPF/fsharp.pureanalyzer" -maxdepth 2 -type d 2>/dev/null || true
+  exit 1
+fi
+ls -la "$AN_PKG/build" 2>/dev/null || echo "WARN: no build/ folder"
+ls -la "$AN_PKG/tools/purity-collector" 2>/dev/null | head -20 || echo "WARN: no tools/purity-collector"
+if [[ ! -f "$AN_PKG/build/FSharp.PureAnalyzer.targets" ]]; then
+  echo "ERROR: FSharp.PureAnalyzer $ANALYZER_VERSION has no build/FSharp.PureAnalyzer.targets (not a Phase 3 package)." >&2
+  echo "       nuget.org 0.3.2 is analyzer-only; use a 0.3.2-ci.* build from GitHub Packages." >&2
+  exit 1
+fi
+if [[ ! -f "$AN_PKG/tools/purity-collector/purity-collector.dll" \
+   && ! -f "$AN_PKG/tools/purity-collector/purity-collector" ]]; then
+  echo "ERROR: FSharp.PureAnalyzer $ANALYZER_VERSION missing purity-collector under tools/." >&2
+  exit 1
+fi
 
 DLL="$(find src/Fspure.ReadyLib/bin -name 'Fspure.ReadyLib.dll' 2>/dev/null | head -1 || true)"
 if [[ -z "$DLL" || ! -f "$DLL" ]]; then
@@ -66,30 +117,17 @@ dotnet build tests/Consumer/Consumer.fsproj \
 echo "==> Drop FSharp.PureAnalyzer for fsharp-analyzers CLI"
 ANALYZER_DROP="$ROOT/artifacts/analyzer-drop/dotnet/fs"
 mkdir -p "$ANALYZER_DROP"
-GPF="${NUGET_PACKAGES:-$HOME/.nuget/packages}"
-
-AN_DLL=""
-if [[ -f "$GPF/fsharp.pureanalyzer/$ANALYZER_VERSION/analyzers/dotnet/fs/FSharp.PureAnalyzer.dll" ]]; then
-  AN_DLL="$GPF/fsharp.pureanalyzer/$ANALYZER_VERSION/analyzers/dotnet/fs/FSharp.PureAnalyzer.dll"
-else
-  while IFS= read -r candidate; do
-    if [[ -f "$(dirname "$candidate")/FSharp.PureSchema.dll" ]]; then
-      AN_DLL="$candidate"
-      break
-    fi
-  done < <(find "$GPF/fsharp.pureanalyzer" -path '*/analyzers/dotnet/fs/FSharp.PureAnalyzer.dll' 2>/dev/null | sort -V | tac)
-fi
-
-if [[ -z "${AN_DLL}" || ! -f "$AN_DLL" ]]; then
-  echo "ERROR: FSharp.PureAnalyzer.dll not in NuGet cache." >&2
+AN_DLL="$AN_PKG/analyzers/dotnet/fs/FSharp.PureAnalyzer.dll"
+SCHEMA="$AN_PKG/analyzers/dotnet/fs/FSharp.PureSchema.dll"
+if [[ ! -f "$AN_DLL" ]]; then
+  echo "ERROR: analyzer DLL missing at $AN_DLL" >&2
   exit 1
 fi
-SCHEMA="$(dirname "$AN_DLL")/FSharp.PureSchema.dll"
 cp -f "$AN_DLL" "$ANALYZER_DROP/"
 if [[ -f "$SCHEMA" ]]; then
   cp -f "$SCHEMA" "$ANALYZER_DROP/"
 else
-  echo "ERROR: FSharp.PureSchema.dll missing next to $AN_DLL" >&2
+  echo "ERROR: FSharp.PureSchema.dll missing next to analyzer" >&2
   exit 1
 fi
 echo "    analyzer → $AN_DLL"
@@ -121,10 +159,6 @@ if echo "$BODY" | grep -E "Function 'Consumer.useAdd' is transitively pure" -q; 
   echo "OK: useAdd is pure (library embed consumed)"
 else
   echo "WARN: useAdd was not clearly PURE003"
-fi
-
-if echo "$BODY" | grep -E "Function 'Consumer.useImpure' is not transitively pure" -q; then
-  echo "OK: useImpure is impure"
 fi
 
 echo ""
