@@ -1,0 +1,87 @@
+# Permanent CI for the fspure-ready-lib sample repository.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      fspure_analyzer_version:
+        description: "FSharp.PureAnalyzer package version to restore"
+        required: false
+        default: "0.1.0"
+      fspure_analyzer_source:
+        description: "Optional extra NuGet source (e.g. local feed or GitHub Packages URL)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  CONFIGURATION: Release
+  FspureAnalyzerVersion: ${{ github.event.inputs.fspure_analyzer_version || '0.1.0' }}
+  FspureReadyLibVersion: 0.1.0-preview.1
+
+jobs:
+  build-pack-assert:
+    name: Build, pack, assert embed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Optional extra package source
+        if: ${{ github.event.inputs.fspure_analyzer_source != '' }}
+        run: |
+          set -euo pipefail
+          dotnet nuget add source "${{ github.event.inputs.fspure_analyzer_source }}" \
+            --name fspure-extra \
+            --configfile NuGet.Config || true
+
+      - name: Restore tools (fsharp-analyzers 0.35.0)
+        run: dotnet tool restore
+
+      - name: Pack library + assert embedded pure.json + consumer restore
+        run: |
+          set -euo pipefail
+          chmod +x scripts/ci-build-and-assert.sh scripts/assert-nupkg-embed.sh
+          bash scripts/ci-build-and-assert.sh
+
+      - name: Assert nupkg embed
+        run: |
+          set -euo pipefail
+          NUPKG="$(ls artifacts/packages/Fspure.ReadyLib*.nupkg | head -1)"
+          bash scripts/assert-nupkg-embed.sh "$NUPKG"
+
+      - name: Upload packages and SARIF
+        uses: actions/upload-artifact@v4
+        with:
+          name: fspure-ready-lib-artifacts
+          path: |
+            artifacts/packages/
+            artifacts/consumer.sarif
+            artifacts/analyzer-stdout.txt
+          if-no-files-found: warn
+
+  phase4-gate:
+    name: Phase 4 gate
+    runs-on: ubuntu-latest
+    needs: build-pack-assert
+    steps:
+      - name: Summary
+        run: |
+          echo "fspure-ready-lib CI green:"
+          echo "  - net10.0 pack"
+          echo "  - embedded {AssemblyName}.pure.json"
+          echo "  - pure-extra.json merge (manualEscapeHatch)"
+          echo "  - consumer restore from local nupkg"
+          echo "  - fsharp-analyzers diagnostics present"

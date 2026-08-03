@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+artifacts/
+*.nupkg
+*.snupkg
+.vs/
+.idea/
+*.user
+*.suo
+TestResults/
+.DS_Store
+packages/
+analyzers/
+# Written by monorepo sync workflow (keep tracking enabled — do not ignore):
+# .fspure-sync-source

@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    One place to turn fspure on for every project in this repo.
+    The FSharp.PureAnalyzer package (PrivateAssets=all on the library) ships
+    MSBuild targets that generate and embed {AssemblyName}.pure.json after build.
+  -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors Condition="'$(Configuration)' == 'Release'">true</TreatWarningsAsErrors>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Phase 3 embed (default true when package is referenced; kept explicit for clarity). -->
+    <FspureEmbedPureJson>true</FspureEmbedPureJson>
+  </PropertyGroup>
+</Project>

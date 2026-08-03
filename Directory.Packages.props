@@ -1,0 +1,14 @@
+<Project>
+  <!--
+    Central package versions for this sample repo.
+    Override FspureAnalyzerVersion in CI when testing against a local / prerelease feed:
+      /p:FspureAnalyzerVersion=0.1.0-ci.42
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- FSharp.PureAnalyzer (development dependency of the sample library). -->
+    <FspureAnalyzerVersion Condition="'$(FspureAnalyzerVersion)' == ''">0.1.0</FspureAnalyzerVersion>
+    <!-- Version of this sample package consumed by tests/Consumer. -->
+    <FspureReadyLibVersion Condition="'$(FspureReadyLibVersion)' == ''">0.1.0-preview.1</FspureReadyLibVersion>
+  </PropertyGroup>
+</Project>

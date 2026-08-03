@@ -1,0 +1,93 @@
+# Publish a prerelease Fspure.ReadyLib package (nuget.org or GitHub Packages).
+# Requires secrets on THIS repository (not the monorepo):
+#   NUGET_API_KEY          — nuget.org API key (optional if only GH Packages)
+#   GITHUB_TOKEN           — automatic for GitHub Packages to this repo
+name: Publish prerelease
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (e.g. 0.1.0-preview.2)"
+        required: true
+        default: "0.1.0-preview.1"
+      fspure_analyzer_version:
+        description: "FSharp.PureAnalyzer version to build against"
+        required: true
+        default: "0.1.0"
+      destination:
+        description: "nuget.org | github | both"
+        required: true
+        default: "github"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  CONFIGURATION: Release
+
+jobs:
+  publish:
+    name: Pack and publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Pack
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/packages
+          dotnet pack src/Fspure.ReadyLib/Fspure.ReadyLib.fsproj \
+            -c ${{ env.CONFIGURATION }} \
+            -o artifacts/packages \
+            --nologo \
+            "/p:Version=${{ github.event.inputs.version }}" \
+            "/p:PackageVersion=${{ github.event.inputs.version }}" \
+            "/p:FspureAnalyzerVersion=${{ github.event.inputs.fspure_analyzer_version }}"
+          ls -lh artifacts/packages
+
+      - name: Assert embed in nupkg
+        run: |
+          set -euo pipefail
+          chmod +x scripts/assert-nupkg-embed.sh
+          NUPKG="$(ls artifacts/packages/Fspure.ReadyLib*.nupkg | head -1)"
+          bash scripts/assert-nupkg-embed.sh "$NUPKG"
+
+      - name: Publish to GitHub Packages
+        if: ${{ github.event.inputs.destination == 'github' || github.event.inputs.destination == 'both' }}
+        run: |
+          set -euo pipefail
+          dotnet nuget push artifacts/packages/*.nupkg \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key "${{ secrets.GITHUB_TOKEN }}" \
+            --skip-duplicate
+
+      - name: Publish to nuget.org
+        if: ${{ github.event.inputs.destination == 'nuget.org' || github.event.inputs.destination == 'both' }}
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${NUGET_API_KEY:-}" ]]; then
+            echo "ERROR: NUGET_API_KEY secret is not set on this repository." >&2
+            exit 1
+          fi
+          dotnet nuget push artifacts/packages/*.nupkg \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key "$NUGET_API_KEY" \
+            --skip-duplicate
+
+      - name: Upload nupkg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkg
+          path: artifacts/packages/

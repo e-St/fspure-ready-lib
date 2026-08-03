@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Fspure.ReadyLib</AssemblyName>
+    <RootNamespace>Fspure.ReadyLib</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <IsFspureReadyLibrary>true</IsFspureReadyLibrary>
+
+    <!-- NuGet identity (publish as prerelease from CI when ready). -->
+    <PackageId>Fspure.ReadyLib</PackageId>
+    <Version>0.1.0-preview.1</Version>
+    <Authors>e-St</Authors>
+    <Description>
+      Minimal fspure-ready F# library sample: embeds pure.json via FSharp.PureAnalyzer MSBuild targets.
+      Copy this repo as a template for your own net10.0 libraries.
+    </Description>
+    <PackageTags>fsharp;pure;fspure;functional;sample</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/e-St/fspure-ready-lib</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/e-St/fspure-ready-lib</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Library.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      THE ONE-LINER for library authors (also set in Directory.Build.props for the solution).
+      PrivateAssets=all: do not flow the analyzer package to YOUR package consumers.
+      Consumers who want pure/impure labels install FSharp.PureAnalyzer themselves ("fspure vanilla").
+    -->
+    <PackageReference Include="FSharp.PureAnalyzer" Version="$(FspureAnalyzerVersion)" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- pure-extra.json sits next to this .fsproj (FspurePureExtraJson default convention). -->
+  <ItemGroup>
+    <None Include="pure-extra.json" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" Condition="Exists('..\..\LICENSE')" />
+  </ItemGroup>
+</Project>

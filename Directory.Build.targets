@@ -1,0 +1,9 @@
+<Project>
+  <!--
+    Consumer / test projects must NOT re-embed pure.json into their own output.
+    Override per-project with FspureEmbedPureJson if needed.
+  -->
+  <PropertyGroup Condition="'$(IsFspureReadyLibrary)' != 'true'">
+    <FspureEmbedPureJson>false</FspureEmbedPureJson>
+  </PropertyGroup>
+</Project>

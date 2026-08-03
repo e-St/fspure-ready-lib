@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/Fspure.ReadyLib/Fspure.ReadyLib.fsproj" />
+  <Project Path="tests/AssertEmbed/AssertEmbed.fsproj" />
+  <Project Path="tests/Consumer/Consumer.fsproj" />
+</Solution>
