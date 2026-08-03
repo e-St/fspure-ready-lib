@@ -1,4 +1,5 @@
 # Permanent CI for the fspure-ready-lib sample repository.
+# Restores the latest FSharp.PureAnalyzer from e-St GitHub Packages by default.
 name: CI
 
 on:
@@ -8,23 +9,27 @@ on:
   workflow_dispatch:
     inputs:
       fspure_analyzer_version:
-        description: "FSharp.PureAnalyzer package version to restore"
+        description: "FSharp.PureAnalyzer version (empty or 'latest' = newest on GitHub Packages)"
         required: false
-        default: "0.1.0"
+        default: "latest"
       fspure_analyzer_source:
-        description: "Optional extra NuGet source (e.g. local feed or GitHub Packages URL)"
+        description: "Optional extra NuGet source URL"
         required: false
         default: ""
 
 permissions:
   contents: read
+  packages: read # pull FSharp.PureAnalyzer from nuget.pkg.github.com/e-St
 
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   CONFIGURATION: Release
-  FspureAnalyzerVersion: ${{ github.event.inputs.fspure_analyzer_version || '0.1.0' }}
+  # "latest" → scripts/resolve-fspure-analyzer-version.sh queries GitHub Packages
+  FspureAnalyzerVersion: ${{ github.event.inputs.fspure_analyzer_version || 'latest' }}
   FspureReadyLibVersion: 0.1.0-preview.1
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build-pack-assert:
@@ -38,6 +43,22 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
+
+      - name: Auth e-St GitHub Packages (FSharp.PureAnalyzer)
+        run: |
+          set -euo pipefail
+          chmod +x scripts/use-github-packages.sh scripts/resolve-fspure-analyzer-version.sh
+          bash scripts/use-github-packages.sh
+
+      - name: Resolve FSharp.PureAnalyzer version
+        id: analyzer
+        run: |
+          set -euo pipefail
+          VER="$(bash scripts/resolve-fspure-analyzer-version.sh)"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Using FSharp.PureAnalyzer $VER"
+          # Export for later steps
+          echo "FspureAnalyzerVersion=$VER" >> "$GITHUB_ENV"
 
       - name: Optional extra package source
         if: ${{ github.event.inputs.fspure_analyzer_source != '' }}
@@ -80,8 +101,6 @@ jobs:
       - name: Summary
         run: |
           echo "fspure-ready-lib CI green:"
-          echo "  - net10.0 pack"
-          echo "  - embedded {AssemblyName}.pure.json"
-          echo "  - pure-extra.json merge (manualEscapeHatch)"
-          echo "  - consumer restore from local nupkg"
-          echo "  - fsharp-analyzers diagnostics present"
+          echo "  - FSharp.PureAnalyzer from e-St GitHub Packages (latest by default)"
+          echo "  - net10.0 pack + embedded pure.json"
+          echo "  - consumer restore + fsharp-analyzers diagnostics"

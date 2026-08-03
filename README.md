@@ -18,7 +18,8 @@ In your **library** project (or `Directory.Build.props`):
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="FSharp.PureAnalyzer" Version="0.1.0" PrivateAssets="all" />
+  <PackageReference Include="FSharp.PureAnalyzer" Version="0.3.2" PrivateAssets="all" />
+  <!-- Sample CI resolves Version to the latest package on e-St GitHub Packages. -->
 </ItemGroup>
 ```
 
@@ -82,7 +83,7 @@ dotnet tool restore
 
 # Pack the sample library into artifacts/packages
 # (requires FSharp.PureAnalyzer on nuget.org or a configured feed)
-export FspureAnalyzerVersion=0.1.0   # override if needed
+export FspureAnalyzerVersion=0.3.2   # default; override only if needed
 bash scripts/ci-build-and-assert.sh
 ```
 
@@ -92,7 +93,7 @@ Point at a **local** FSharp.PureAnalyzer nupkg (e.g. built from the monorepo):
 mkdir -p artifacts/packages
 # copy FSharp.PureAnalyzer.*.nupkg into artifacts/packages (or another folder listed in NuGet.Config)
 dotnet nuget add source "$(pwd)/artifacts/packages" --name local-fspure --configfile NuGet.Config
-export FspureAnalyzerVersion=0.1.0
+export FspureAnalyzerVersion=0.3.2
 bash scripts/ci-build-and-assert.sh
 ```
 

@@ -1,14 +1,15 @@
 <Project>
   <!--
-    Central package versions for this sample repo.
-    Override FspureAnalyzerVersion in CI when testing against a local / prerelease feed:
-      /p:FspureAnalyzerVersion=0.3.2
+    FSharp.PureAnalyzer version:
+      - Default empty → scripts/CI resolve "latest" from e-St GitHub Packages
+      - Override: /p:FspureAnalyzerVersion=0.3.2  or  export FspureAnalyzerVersion=...
   -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
-    <!-- FSharp.PureAnalyzer (development dependency of the sample library). Phase 3 embed requires 0.3.2+. -->
+    <!-- Leave empty in CI so scripts resolve latest from github.com/e-St packages. -->
+    <FspureAnalyzerVersion Condition="'$(FspureAnalyzerVersion)' == ''"></FspureAnalyzerVersion>
+    <!-- Local fallback if property still empty at evaluate time (restore without script). -->
     <FspureAnalyzerVersion Condition="'$(FspureAnalyzerVersion)' == ''">0.3.2</FspureAnalyzerVersion>
-    <!-- Version of this sample package consumed by tests/Consumer. -->
     <FspureReadyLibVersion Condition="'$(FspureReadyLibVersion)' == ''">0.1.0-preview.1</FspureReadyLibVersion>
   </PropertyGroup>
 </Project>

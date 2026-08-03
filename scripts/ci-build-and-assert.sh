@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Build + pack Fspure.ReadyLib, assert embedded pure.json, restore consumer.
 # Run from the repository root (this sample repo root).
+#
+# FSharp.PureAnalyzer: defaults to latest on e-St GitHub Packages when
+# FspureAnalyzerVersion is unset or "latest". Requires GITHUB_TOKEN for that feed.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -8,9 +11,21 @@ cd "$ROOT"
 
 CONFIGURATION="${CONFIGURATION:-Release}"
 VERSION="${FspureReadyLibVersion:-0.1.0-preview.1}"
-ANALYZER_VERSION="${FspureAnalyzerVersion:-0.1.0}"
 PKG_DIR="$ROOT/artifacts/packages"
 mkdir -p "$PKG_DIR" "$ROOT/artifacts"
+
+chmod +x scripts/use-github-packages.sh scripts/resolve-fspure-analyzer-version.sh 2>/dev/null || true
+
+# Authenticate GitHub Packages when a token is available (CI always should set one).
+if [[ -n "${GITHUB_TOKEN:-${GH_TOKEN:-}}" ]]; then
+  bash scripts/use-github-packages.sh
+else
+  echo "WARN: no GITHUB_TOKEN — GitHub Packages may fail; set token or use a local nupkg in artifacts/packages." >&2
+fi
+
+ANALYZER_VERSION="$(bash scripts/resolve-fspure-analyzer-version.sh)"
+export FspureAnalyzerVersion="$ANALYZER_VERSION"
+echo "==> Using FSharp.PureAnalyzer $ANALYZER_VERSION"
 
 echo "==> Pack Fspure.ReadyLib $VERSION (FSharp.PureAnalyzer $ANALYZER_VERSION)"
 dotnet pack src/Fspure.ReadyLib/Fspure.ReadyLib.fsproj \
@@ -48,8 +63,8 @@ ANALYZER_DROP="$ROOT/artifacts/analyzer-drop/dotnet/fs"
 mkdir -p "$ANALYZER_DROP"
 GPF="${NUGET_PACKAGES:-$HOME/.nuget/packages}"
 
-# Prefer the exact version used for the library build, then newest with PureSchema.dll present.
 AN_DLL=""
+# Exact resolved version first
 if [[ -f "$GPF/fsharp.pureanalyzer/$ANALYZER_VERSION/analyzers/dotnet/fs/FSharp.PureAnalyzer.dll" ]]; then
   AN_DLL="$GPF/fsharp.pureanalyzer/$ANALYZER_VERSION/analyzers/dotnet/fs/FSharp.PureAnalyzer.dll"
 else
@@ -62,7 +77,7 @@ else
 fi
 
 if [[ -z "${AN_DLL}" || ! -f "$AN_DLL" ]]; then
-  echo "ERROR: FSharp.PureAnalyzer.dll not in NuGet cache (need a Phase 3 package with PureSchema)." >&2
+  echo "ERROR: FSharp.PureAnalyzer.dll not in NuGet cache (need Phase 3 package with PureSchema)." >&2
   exit 1
 fi
 SCHEMA="$(dirname "$AN_DLL")/FSharp.PureSchema.dll"
@@ -98,7 +113,6 @@ echo "$BODY" | grep -q 'useImpure' || { echo "ERROR: no diagnostic mentioning us
 echo "$BODY" | grep -q 'PURE002' || { echo "ERROR: expected PURE002 (impure) somewhere"; exit 1; }
 echo "$BODY" | grep -q 'PURE003' || { echo "ERROR: expected PURE003 (pure) somewhere"; exit 1; }
 
-# Prefer a tight match: useAdd pure when library embed is consumed.
 if echo "$BODY" | grep -E "Function 'Consumer.useAdd' is transitively pure|useAdd.*PURE003|PURE003.*useAdd" -q; then
   echo "OK: useAdd is pure (library embed consumed)"
 else
@@ -112,6 +126,7 @@ fi
 
 echo ""
 echo "✅ ci-build-and-assert completed (fsharp-analyzers exit=$ANALYZER_EXIT)"
+echo "   FSharp.PureAnalyzer: $ANALYZER_VERSION"
 echo "   packages: $PKG_DIR"
 echo "   dll:      $DLL"
 echo "   report:   $REPORT"

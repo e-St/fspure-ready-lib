@@ -1,7 +1,5 @@
 # Publish a prerelease Fspure.ReadyLib package (nuget.org or GitHub Packages).
-# Requires secrets on THIS repository (not the monorepo):
-#   NUGET_API_KEY          — nuget.org API key (optional if only GH Packages)
-#   GITHUB_TOKEN           — automatic for GitHub Packages to this repo
+# Builds against the latest FSharp.PureAnalyzer from e-St GitHub Packages by default.
 name: Publish prerelease
 
 on:
@@ -12,9 +10,9 @@ on:
         required: true
         default: "0.1.0-preview.1"
       fspure_analyzer_version:
-        description: "FSharp.PureAnalyzer version to build against"
-        required: true
-        default: "0.1.0"
+        description: "FSharp.PureAnalyzer version (empty or 'latest' = newest on GitHub Packages)"
+        required: false
+        default: "latest"
       destination:
         description: "nuget.org | github | both"
         required: true
@@ -22,12 +20,15 @@ on:
 
 permissions:
   contents: read
-  packages: write
+  packages: write # publish Fspure.ReadyLib + read FSharp.PureAnalyzer
 
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   CONFIGURATION: Release
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  FspureAnalyzerVersion: ${{ github.event.inputs.fspure_analyzer_version || 'latest' }}
 
 jobs:
   publish:
@@ -42,6 +43,15 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      - name: Auth e-St GitHub Packages
+        run: |
+          set -euo pipefail
+          chmod +x scripts/use-github-packages.sh scripts/resolve-fspure-analyzer-version.sh
+          bash scripts/use-github-packages.sh
+          VER="$(bash scripts/resolve-fspure-analyzer-version.sh)"
+          echo "FspureAnalyzerVersion=$VER" >> "$GITHUB_ENV"
+          echo "Using FSharp.PureAnalyzer $VER"
+
       - name: Pack
         run: |
           set -euo pipefail
@@ -52,7 +62,7 @@ jobs:
             --nologo \
             "/p:Version=${{ github.event.inputs.version }}" \
             "/p:PackageVersion=${{ github.event.inputs.version }}" \
-            "/p:FspureAnalyzerVersion=${{ github.event.inputs.fspure_analyzer_version }}"
+            "/p:FspureAnalyzerVersion=${FspureAnalyzerVersion}"
           ls -lh artifacts/packages
 
       - name: Assert embed in nupkg
