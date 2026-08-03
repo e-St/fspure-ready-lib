@@ -36,7 +36,15 @@ gh repo create e-St/fspure-ready-lib --public --source=. --remote=origin --push
 | Secret | Used by | Purpose |
 |--------|---------|---------|
 | `NUGET_API_KEY` | `publish.yml` → nuget.org | Publish `Fspure.ReadyLib` |
-| (auto) `GITHUB_TOKEN` | `publish.yml` → GitHub Packages | Publish to `nuget.pkg.github.com/e-St` |
+| (auto) `GITHUB_TOKEN` | `publish.yml` / `CI (dev)` | Publish or read packages when allowed |
+| `FSPURE_PACKAGES_READ_TOKEN` (optional but recommended for **dev**) | `CI (dev)` | PAT with **packages:read** so dev CI can download `FSharp.PureAnalyzer` **published by e-St/fspure** (GITHUB_TOKEN from this repo often cannot) |
+
+### Dev branch + unreleased analyzer
+
+1. Monorepo workflow **Publish analyzer to GitHub Packages (CI)** publishes `FSharp.PureAnalyzer` as `0.3.2-ci.{run}.{sha}` on each relevant push.
+2. Grant **fspure-ready-lib** access to that package (package → **Package settings** → **Manage Actions access**), **or** set `FSPURE_PACKAGES_READ_TOKEN`.
+3. Satellite **`dev`** runs **CI (dev)** and restores the newest GitHub Packages version.
+4. Satellite **`main`** keeps using **nuget.org** releases only.
 
 ## CI expectations
 

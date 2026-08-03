@@ -12,11 +12,13 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG="$ROOT/NuGet.Config"
-TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+# Prefer a packages-read PAT that can see packages published by e-St/fspure
+# (GITHUB_TOKEN from fspure-ready-lib cannot download those by default).
+TOKEN="${FSPURE_PACKAGES_READ_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-}}}"
 USER="${GITHUB_ACTOR:-x-access-token}"
 
 if [[ -z "$TOKEN" ]]; then
-  echo "ERROR: set GITHUB_TOKEN (or GH_TOKEN) with packages:read for e-St GitHub Packages." >&2
+  echo "ERROR: set GITHUB_TOKEN or FSPURE_PACKAGES_READ_TOKEN (packages:read) for e-St GitHub Packages." >&2
   exit 1
 fi
 
