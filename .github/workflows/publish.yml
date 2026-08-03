@@ -29,6 +29,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   FspureAnalyzerVersion: ${{ github.event.inputs.fspure_analyzer_version || 'latest' }}
+  REQUIRE_GITHUB_PACKAGES: "1"
 
 jobs:
   publish:

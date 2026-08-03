@@ -19,13 +19,16 @@ chmod +x scripts/use-github-packages.sh scripts/resolve-fspure-analyzer-version.
 # Authenticate GitHub Packages when a token is available (CI always should set one).
 if [[ -n "${GITHUB_TOKEN:-${GH_TOKEN:-}}" ]]; then
   bash scripts/use-github-packages.sh
+elif [[ "${REQUIRE_GITHUB_PACKAGES:-0}" == "1" ]]; then
+  echo "ERROR: GITHUB_TOKEN required (REQUIRE_GITHUB_PACKAGES=1)." >&2
+  exit 1
 else
   echo "WARN: no GITHUB_TOKEN — GitHub Packages may fail; set token or use a local nupkg in artifacts/packages." >&2
 fi
 
 ANALYZER_VERSION="$(bash scripts/resolve-fspure-analyzer-version.sh)"
 export FspureAnalyzerVersion="$ANALYZER_VERSION"
-echo "==> Using FSharp.PureAnalyzer $ANALYZER_VERSION"
+echo "==> Using FSharp.PureAnalyzer $ANALYZER_VERSION (source: e-St GitHub Packages unless pinned)"
 
 echo "==> Pack Fspure.ReadyLib $VERSION (FSharp.PureAnalyzer $ANALYZER_VERSION)"
 dotnet pack src/Fspure.ReadyLib/Fspure.ReadyLib.fsproj \
