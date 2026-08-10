@@ -73,7 +73,7 @@ consumer + fsharp-analyzers → hard PURE003 / PURE002
 ```bash
 # From fspure monorepo root
 bash scripts/fspure-ready-lib-gate.sh
-# or: bash e2e/ready-lib/run.sh
+# or: bash tests/e2e/ready-lib/run.sh
 # or from this folder when nested in monorepo:
 bash scripts/ci-build-and-assert.sh   # auto-delegates to monorepo gate
 ```
@@ -133,6 +133,6 @@ dotnet add package FSharp.PureAnalyzer
 ## Related
 
 - Main infrastructure: [e-St/fspure](https://github.com/e-St/fspure)  
-- Monorepo gate: `scripts/fspure-ready-lib-gate.sh` · `e2e/ready-lib/`  
+- Monorepo gate: `scripts/fspure-ready-lib-gate.sh` · `tests/e2e/ready-lib/`  
 - Analyzer package: `FSharp.PureAnalyzer` (MSBuild targets + Ionide analyzer)  
 - Collector tool: `fspure-collector` (bundled inside the analyzer package `tools/`)  

@@ -17,7 +17,7 @@ cd "$ROOT"
 MONOREPO="$(cd "$ROOT/../.." 2>/dev/null && pwd || true)"
 if [[ -n "${MONOREPO:-}" \
    && -f "$MONOREPO/scripts/fspure-ready-lib-gate.sh" \
-   && -f "$MONOREPO/FSharp.PureAnalyzer/FSharp.PureAnalyzer.fsproj" ]]; then
+   && -f "$MONOREPO/src/FSharp.PureAnalyzer/FSharp.PureAnalyzer.fsproj" ]]; then
   echo "==> Monorepo detected — running scripts/fspure-ready-lib-gate.sh"
   exec bash "$MONOREPO/scripts/fspure-ready-lib-gate.sh"
 fi

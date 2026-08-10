@@ -1,8 +1,8 @@
 source_repo=e-St/fspure
 source_path=samples/fspure-ready-lib
-source_sha=139fad45df06828f36d9986565249981abfdc740
+source_sha=0fd0a591d40d44ca0f1f5a477760236922e516c2
 source_ref=refs/heads/main
-synced_at_utc=2026-08-10T17:35:30Z
-workflow_run=https://github.com/e-St/fspure/actions/runs/31414752809
+synced_at_utc=2026-08-10T18:00:02Z
+workflow_run=https://github.com/e-St/fspure/actions/runs/31416825764
 method=single-synthetic-commit
 branches=main,dev
