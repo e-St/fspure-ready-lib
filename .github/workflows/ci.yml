@@ -1,8 +1,5 @@
 # Customer-facing CI (main / master / PRs into main).
-#
-# Analyzer source: e-St GitHub Packages (-ci builds with Phase 3 embed targets).
-# nuget.org 0.3.2 is analyzer-only (no build/); switch back to release channel
-# after a Phase 3 FSharp.PureAnalyzer is published to nuget.org.
+# Uses released FSharp.PureAnalyzer from nuget.org (Phase 3: 0.4.0+).
 name: CI
 
 on:
@@ -13,28 +10,23 @@ on:
   workflow_dispatch:
     inputs:
       fspure_analyzer_version:
-        description: "Pin FSharp.PureAnalyzer -ci.* version, or leave empty for latest"
+        description: "Released FSharp.PureAnalyzer version (empty = Directory.Packages.props / nuget.org latest stable)"
         required: false
         default: ""
 
 permissions:
   contents: read
-  packages: read
 
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   CONFIGURATION: Release
-  FSPURE_ANALYZER_CHANNEL: github-latest
-  REQUIRE_GITHUB_PACKAGES: "1"
+  FSPURE_ANALYZER_CHANNEL: release
   FspureReadyLibVersion: 0.1.0-preview.1
-  GITHUB_TOKEN: ${{ secrets.FSPURE_PACKAGES_READ_TOKEN || secrets.GITHUB_TOKEN }}
-  GH_TOKEN: ${{ secrets.FSPURE_PACKAGES_READ_TOKEN || secrets.GITHUB_TOKEN }}
-  FSPURE_PACKAGES_READ_TOKEN: ${{ secrets.FSPURE_PACKAGES_READ_TOKEN }}
 
 jobs:
   build-pack-assert:
-    name: Build, pack, assert embed
+    name: Build, pack, assert embed (nuget.org release)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -45,48 +37,14 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Auth e-St GitHub Packages
-        run: |
-          set -euo pipefail
-          chmod +x scripts/*.sh
-          bash scripts/use-github-packages.sh
-
-      - name: Resolve analyzer (require -ci prerelease)
-        id: analyzer
-        run: |
-          set -euo pipefail
-          export FSPURE_ANALYZER_CHANNEL=github-latest
-          export REQUIRE_GITHUB_PACKAGES=1
-
-          INPUT="${{ github.event.inputs.fspure_analyzer_version }}"
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" \
-             && -n "${INPUT}" && "${INPUT}" != "latest" ]]; then
-            export FspureAnalyzerVersion="${INPUT}"
-            export FSPURE_ANALYZER_PINNED=1
-          else
-            unset FspureAnalyzerVersion || true
-            export FspureAnalyzerVersion=latest
-            export FSPURE_ANALYZER_PINNED=0
-          fi
-
-          VER="$(bash scripts/resolve-fspure-analyzer-version.sh)"
-          echo "version=$VER" >> "$GITHUB_OUTPUT"
-          echo "FspureAnalyzerVersion=$VER" >> "$GITHUB_ENV"
-          echo "FSPURE_ANALYZER_PINNED=1" >> "$GITHUB_ENV"
-
-          if [[ "$VER" == "0.3.2" ]] || [[ "$VER" != *-ci.* ]]; then
-            echo "::error::Need a -ci.* prerelease (got \`$VER\`). nuget.org 0.3.2 has no Phase 3 embed targets."
-            exit 1
-          fi
+      - name: Pin analyzer version (optional dispatch override)
+        if: ${{ github.event.inputs.fspure_analyzer_version != '' }}
+        run: echo "FspureAnalyzerVersion=${{ github.event.inputs.fspure_analyzer_version }}" >> "$GITHUB_ENV"
 
       - name: Restore tools (fsharp-analyzers 0.35.0)
         run: dotnet tool restore
 
       - name: Pack + assert embed + consumer diagnostics
-        env:
-          FSPURE_ANALYZER_CHANNEL: github-latest
-          REQUIRE_GITHUB_PACKAGES: "1"
-          FSPURE_ANALYZER_PINNED: "1"
         run: |
           set -euo pipefail
           chmod +x scripts/*.sh
@@ -101,7 +59,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fspure-ready-lib-artifacts-main
+          name: fspure-ready-lib-artifacts-release
           path: |
             artifacts/packages/
             artifacts/consumer.sarif
@@ -113,4 +71,4 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-pack-assert
     steps:
-      - run: echo "main CI green (Phase 3 analyzer from GitHub Packages)"
+      - run: echo "main CI green (FSharp.PureAnalyzer from nuget.org, Phase 3+)"

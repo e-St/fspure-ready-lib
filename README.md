@@ -18,11 +18,11 @@ In your **library** project (or `Directory.Build.props`):
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="FSharp.PureAnalyzer" Version="VERSION" PrivateAssets="all" />
+  <PackageReference Include="FSharp.PureAnalyzer" Version="0.4.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 
-Use a `FSharp.PureAnalyzer` version that ships **MSBuild embed targets** (`build/FSharp.PureAnalyzer.targets` + `tools/fspure-collector/`). That is the Phase 3+ package layout.
+Use **0.4.0+** (Phase 3): ships `build/FSharp.PureAnalyzer.targets` + `tools/fspure-collector/`. (nuget.org `0.3.2` is analyzer-only and cannot embed.)
 
 That single reference pulls targets that, after each build:
 

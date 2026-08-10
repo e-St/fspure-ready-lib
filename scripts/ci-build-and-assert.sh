@@ -25,7 +25,7 @@ fi
 # --- Standalone satellite -----------------------------------------------------
 CONFIGURATION="${CONFIGURATION:-Release}"
 VERSION="${FspureReadyLibVersion:-0.1.0-preview.1}"
-CHANNEL="${FSPURE_ANALYZER_CHANNEL:-github-latest}"
+CHANNEL="${FSPURE_ANALYZER_CHANNEL:-release}"
 PKG_DIR="$ROOT/artifacts/packages"
 mkdir -p "$PKG_DIR" "$ROOT/artifacts"
 

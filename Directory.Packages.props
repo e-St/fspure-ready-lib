@@ -8,11 +8,11 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <!--
-      Default pin is nuget.org 0.3.2 (analyzer-only — no MSBuild embed targets).
-      Satellite CI overrides this with a GitHub Packages *-ci.* Phase 3 build.
+      Default pin: nuget.org Phase 3+ analyzer (build/ + tools/fspure-collector/).
+      Dev satellite CI may override with GitHub Packages *-ci.* builds.
       Monorepo gate packs a local 0.0.0-ci analyzer and never uses this pin.
     -->
-    <FspureAnalyzerVersion Condition="'$(FspureAnalyzerVersion)' == ''">0.3.2</FspureAnalyzerVersion>
+    <FspureAnalyzerVersion Condition="'$(FspureAnalyzerVersion)' == ''">0.4.0</FspureAnalyzerVersion>
     <FspureReadyLibVersion Condition="'$(FspureReadyLibVersion)' == ''">0.1.0-preview.1</FspureReadyLibVersion>
   </PropertyGroup>
 </Project>

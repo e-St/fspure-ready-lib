@@ -15,7 +15,7 @@ set -euo pipefail
 OWNER="${FSPURE_GITHUB_OWNER:-e-St}"
 PKG="FSharp.PureAnalyzer"
 CHANNEL="${FSPURE_ANALYZER_CHANNEL:-release}"
-FALLBACK="${FSPURE_ANALYZER_FALLBACK_VERSION:-0.3.2}"
+FALLBACK="${FSPURE_ANALYZER_FALLBACK_VERSION:-0.4.0}"
 REQUIRE="${REQUIRE_GITHUB_PACKAGES:-0}"
 PINNED="${FSPURE_ANALYZER_PINNED:-0}"
 
@@ -30,7 +30,8 @@ is_ci_prerelease() {
 if [[ -n "${FspureAnalyzerVersion:-}" && "${FspureAnalyzerVersion}" != "latest" ]]; then
   if [[ "$CHANNEL" == "github-latest" && "$PINNED" != "1" ]]; then
     if [[ "${FspureAnalyzerVersion}" == "$FALLBACK" \
-       || "${FspureAnalyzerVersion}" == "0.3.2" ]] \
+       || "${FspureAnalyzerVersion}" == "0.3.2" \
+       || "${FspureAnalyzerVersion}" == "0.4.0" ]] \
        || ! is_ci_prerelease "${FspureAnalyzerVersion}"; then
       log "Ignoring non-CI pin ${FspureAnalyzerVersion} on channel=github-latest (set FSPURE_ANALYZER_PINNED=1 to force)."
       export FspureAnalyzerVersion=latest
@@ -48,7 +49,8 @@ fi
 
 # ----- release channel -----
 if [[ "$CHANNEL" == "release" ]]; then
-  if [[ "${FspureAnalyzerVersion:-}" == "latest" ]]; then
+  # Prefer newest stable on nuget.org (e.g. 0.4.0+ Phase 3); fall back to pin.
+  if [[ -z "${FspureAnalyzerVersion:-}" || "${FspureAnalyzerVersion}" == "latest" ]]; then
     ver="$(
       curl -fsSL "https://api.nuget.org/v3-flatcontainer/fsharp.pureanalyzer/index.json" \
         | python3 -c '
