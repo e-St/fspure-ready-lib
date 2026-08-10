@@ -1,0 +1,11 @@
+# Golden contract: Fspure.ReadyLib pure method full names that must appear in
+# the embedded pure.json after collector + pure-extra merge.
+# Update this file intentionally when the sample public pure surface changes.
+# Lines starting with # are comments. Sorted for stable diffs.
+Fspure.ReadyLib.Api.absInt
+Fspure.ReadyLib.Api.add
+Fspure.ReadyLib.Api.clamp
+Fspure.ReadyLib.Api.manualEscapeHatch
+Fspure.ReadyLib.Api.mapDouble
+Fspure.ReadyLib.Api.mul
+Fspure.ReadyLib.Api.sum

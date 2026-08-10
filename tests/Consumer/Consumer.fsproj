@@ -5,20 +5,23 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <IsFspureReadyLibrary>false</IsFspureReadyLibrary>
+    <!--
+      Phase 5: same project, two reference styles (no second consumer project).
+        PackageReference (default):  restore packed Fspure.ReadyLib from local feed
+        ProjectReference:            /p:FspureReadyLibUseProjectReference=true
+    -->
+    <FspureReadyLibUseProjectReference Condition="'$(FspureReadyLibUseProjectReference)' == ''">false</FspureReadyLibUseProjectReference>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="Program.fs" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!--
-      Prefer PackageReference to the packed sample (CI packs then restores from artifacts/packages).
-      For a quick local loop without pack, switch to ProjectReference (commented below).
-    -->
+  <ItemGroup Condition="'$(FspureReadyLibUseProjectReference)' != 'true'">
     <PackageReference Include="Fspure.ReadyLib" Version="$(FspureReadyLibVersion)" />
-    <!--
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(FspureReadyLibUseProjectReference)' == 'true'">
     <ProjectReference Include="..\..\src\Fspure.ReadyLib\Fspure.ReadyLib.fsproj" />
-    -->
   </ItemGroup>
 </Project>

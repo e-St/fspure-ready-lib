@@ -104,8 +104,9 @@ src/Fspure.ReadyLib/     # the publishable class library
   pure-extra.json        # merge demo
   Fspure.ReadyLib.fsproj
 tests/AssertEmbed/       # PE reader: assert embedded pure.json
-tests/Consumer/          # restores packed package; used with fsharp-analyzers
-scripts/                 # thin wrappers → monorepo gate when nested
+tests/Consumer/          # PackageReference or ProjectReference (Phase 5 flag)
+tests/golden/            # pure-method contract for ReadyLib public surface
+scripts/                 # CI helpers; monorepo gate when nested
 .github/workflows/       # satellite CI / optional publish (marketing)
 Directory.Build.props    # turns embed on for the library
 ```
