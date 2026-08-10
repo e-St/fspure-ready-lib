@@ -91,11 +91,17 @@ step "Inspect analyzer package $AN_PKG"
 }
 [[ -f "$AN_PKG/build/FSharp.PureAnalyzer.targets" ]] \
   || die "FSharp.PureAnalyzer $ANALYZER_VERSION has no build/ targets (not Phase 3). Use a -ci.* package from GitHub Packages."
-if [[ ! -f "$AN_PKG/tools/fspure-collector/fspure-collector.dll" \
-   && ! -f "$AN_PKG/tools/fspure-collector/fspure-collector" ]]; then
-  die "FSharp.PureAnalyzer $ANALYZER_VERSION missing tools/fspure-collector"
+# Collector tool path: current packages use tools/fspure-collector/;
+# older Phase 3 CI packages used tools/purity-collector/ (pre-rename).
+if [[ -f "$AN_PKG/tools/fspure-collector/fspure-collector.dll" \
+   || -f "$AN_PKG/tools/fspure-collector/fspure-collector" ]]; then
+  ok "Phase 3 package layout (tools/fspure-collector)"
+elif [[ -f "$AN_PKG/tools/purity-collector/purity-collector.dll" \
+   || -f "$AN_PKG/tools/purity-collector/purity-collector" ]]; then
+  ok "Phase 3 package layout (legacy tools/purity-collector)"
+else
+  die "FSharp.PureAnalyzer $ANALYZER_VERSION missing tools/fspure-collector (or legacy tools/purity-collector)"
 fi
-ok "Phase 3 package layout"
 
 DLL="$(find src/Fspure.ReadyLib/bin -name 'Fspure.ReadyLib.dll' 2>/dev/null | head -1 || true)"
 [[ -n "$DLL" && -f "$DLL" ]] || die "Fspure.ReadyLib.dll not found after pack"
