@@ -6,6 +6,7 @@ namespace Fspure.ReadyLib
 /// The impure helper must stay impure (I/O) so vanilla fspure labels it correctly.
 module Api =
 
+    // <docs-snippet id="ready-lib-api">
     // --- Pure (collector should classify as pure) ---
 
     /// Integer addition.
@@ -40,3 +41,4 @@ module Api =
     /// Side-effecting log — must NOT appear as pure in pure.json.
     let impureLog (message: string) : unit =
         System.Console.WriteLine(message)
+    // </docs-snippet>

@@ -30,12 +30,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- <docs-snippet id="ready-lib-package-ref"> -->
     <!--
       THE ONE-LINER for library authors (also set in Directory.Build.props for the solution).
       PrivateAssets=all: do not flow the analyzer package to YOUR package consumers.
       Consumers who want pure/impure labels install FSharp.PureAnalyzer themselves ("fspure vanilla").
     -->
     <PackageReference Include="FSharp.PureAnalyzer" Version="$(FspureAnalyzerVersion)" PrivateAssets="all" />
+    <!-- </docs-snippet> -->
   </ItemGroup>
 
   <!-- pure-extra.json sits next to this .fsproj (FspurePureExtraJson default convention). -->
