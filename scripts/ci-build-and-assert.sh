@@ -91,9 +91,9 @@ step "Inspect analyzer package $AN_PKG"
 }
 [[ -f "$AN_PKG/build/FSharp.PureAnalyzer.targets" ]] \
   || die "FSharp.PureAnalyzer $ANALYZER_VERSION has no build/ targets (not Phase 3). Use a -ci.* package from GitHub Packages."
-if [[ ! -f "$AN_PKG/tools/purity-collector/purity-collector.dll" \
-   && ! -f "$AN_PKG/tools/purity-collector/purity-collector" ]]; then
-  die "FSharp.PureAnalyzer $ANALYZER_VERSION missing tools/purity-collector"
+if [[ ! -f "$AN_PKG/tools/fspure-collector/fspure-collector.dll" \
+   && ! -f "$AN_PKG/tools/fspure-collector/fspure-collector" ]]; then
+  die "FSharp.PureAnalyzer $ANALYZER_VERSION missing tools/fspure-collector"
 fi
 ok "Phase 3 package layout"
 

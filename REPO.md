@@ -45,13 +45,13 @@ gh repo create e-St/fspure-ready-lib --public --source=. --remote=origin --push
 2. That workflow then fires `repository_dispatch` → **CI (dev)** on this satellite (avoids racing the package publish).
 3. Grant **fspure-ready-lib** access to that package (package → **Package settings** → **Manage Actions access**), **or** set `FSPURE_PACKAGES_READ_TOKEN`.
 4. Satellite **`dev`** **requires** a `-ci.*` version (not mirrored `0.3.2`). nuget.org / GH-mirrored `0.3.2` is analyzer-only and **cannot** embed `pure.json`.
-5. Satellite **`main`** keeps using **nuget.org** releases only — **needs a Phase 3+ release** (with `build/` + `tools/purity-collector`). Current nuget.org `0.3.2` will fail the embed assert until that ships.
+5. Satellite **`main`** keeps using **nuget.org** releases only — **needs a Phase 3+ release** (with `build/` + `tools/fspure-collector`). Current nuget.org `0.3.2` will fail the embed assert until that ships.
 
 ## CI expectations
 
 | Branch | Analyzer source | What must be true |
 |--------|-----------------|-------------------|
-| **`dev`** | GitHub Packages `-ci.*` | Package has `build/FSharp.PureAnalyzer.targets` + `tools/purity-collector` |
+| **`dev`** | GitHub Packages `-ci.*` | Package has `build/FSharp.PureAnalyzer.targets` + `tools/fspure-collector` |
 | **`main`** | nuget.org stable | Same Phase 3 layout once published (not yet in `0.3.2`) |
 
 ## Versioning
@@ -63,7 +63,7 @@ gh repo create e-St/fspure-ready-lib --public --source=. --remote=origin --push
 
 ## What not to put in this repo
 
-- Do not vendor purity-collector source or the full fspure monorepo  
+- Do not vendor fspure-collector source or the full fspure monorepo  
 - Do not set `PrivateAssets` incorrectly on FSharp.PureAnalyzer (must be `all` on the library)  
 - Do not target net8/net9 — **net10.0 only**  
 

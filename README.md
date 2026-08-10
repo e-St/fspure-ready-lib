@@ -22,11 +22,11 @@ In your **library** project (or `Directory.Build.props`):
 </ItemGroup>
 ```
 
-Use a `FSharp.PureAnalyzer` version that ships **MSBuild embed targets** (`build/FSharp.PureAnalyzer.targets` + `tools/purity-collector/`). That is the Phase 3+ package layout.
+Use a `FSharp.PureAnalyzer` version that ships **MSBuild embed targets** (`build/FSharp.PureAnalyzer.targets` + `tools/fspure-collector/`). That is the Phase 3+ package layout.
 
 That single reference pulls targets that, after each build:
 
-1. Run **purity-collector** on your DLL  
+1. Run **fspure-collector** on your DLL  
 2. Merge optional **`pure-extra.json`** next to the project  
 3. Embed **`{AssemblyName}.pure.json`** into the DLL  
 
@@ -135,4 +135,4 @@ dotnet add package FSharp.PureAnalyzer
 - Main infrastructure: [e-St/fspure](https://github.com/e-St/fspure)  
 - Monorepo gate: `scripts/fspure-ready-lib-gate.sh` · `e2e/ready-lib/`  
 - Analyzer package: `FSharp.PureAnalyzer` (MSBuild targets + Ionide analyzer)  
-- Collector tool: `purity-collector` (bundled inside the analyzer package `tools/`)  
+- Collector tool: `fspure-collector` (bundled inside the analyzer package `tools/`)  
