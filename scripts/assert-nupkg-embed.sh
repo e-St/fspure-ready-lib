@@ -1,28 +1,9 @@
 #!/usr/bin/env bash
-# Unzip a Fspure.ReadyLib nupkg and assert the lib DLL embeds pure.json.
 set -euo pipefail
-
-NUPKG="${1:-}"
-if [[ -z "$NUPKG" || ! -f "$NUPKG" ]]; then
-  echo "usage: $0 <Fspure.ReadyLib.*.nupkg>" >&2
-  exit 2
-fi
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
-
-unzip -q "$NUPKG" -d "$TMP"
-DLL="$(find "$TMP" -name 'Fspure.ReadyLib.dll' | head -1 || true)"
-if [[ -z "$DLL" ]]; then
-  echo "ERROR: Fspure.ReadyLib.dll missing from nupkg" >&2
-  find "$TMP" -type f | head -50 >&2
-  exit 1
+MONO="$(cd "$ROOT/../../.." 2>/dev/null && pwd || true)"
+if [[ -n "${MONO:-}" && -f "$MONO/src/Fspure.Tasks/Fspure.Tasks.fsproj" ]]; then
+  exec dotnet run --project "$MONO/src/Fspure.Tasks/Fspure.Tasks.fsproj" -c "${CONFIGURATION:-Release}" -- assert-nupkg "$@"
 fi
-
-dotnet run --project "$ROOT/tests/AssertEmbed/AssertEmbed.fsproj" -c Release -- \
-  "$DLL" \
-  "Fspure.ReadyLib.Api.add" \
-  "Fspure.ReadyLib.Api.manualEscapeHatch"
-
-echo "✅ nupkg embed OK: $NUPKG"
+echo "ERROR: run from fspure monorepo (Fspure.Tasks)" >&2
+exit 1
