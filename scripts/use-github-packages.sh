@@ -7,7 +7,7 @@
 #
 # Usage (from repo root):
 #   export GITHUB_TOKEN=...
-#   source scripts/use-github-packages.sh   # or bash scripts/use-github-packages.sh
+#   source src/scripts/use-github-packages.sh   # or bash src/scripts/use-github-packages.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

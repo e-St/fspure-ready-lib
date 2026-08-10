@@ -2,7 +2,7 @@
 
 Minimal **net10.0** F# library that is **fspure-ready**: building the package embeds a `pure.json` pure-method whitelist into the DLL so vanilla fspure users (FSharp.PureAnalyzer + VS Code decorations) get correct pure/impure labels when they call your API.
 
-This tree is the copy-paste template for library authors. Source of truth lives in the [fspure monorepo](https://github.com/e-St/fspure) under `samples/fspure-ready-lib/`.
+This tree is the copy-paste template for library authors. Source of truth lives in the [fspure monorepo](https://github.com/e-St/fspure) under `src/samples/fspure-ready-lib/`.
 
 | | |
 |--|--|
@@ -72,10 +72,10 @@ consumer + fsharp-analyzers → hard PURE003 / PURE002
 
 ```bash
 # From fspure monorepo root
-bash scripts/fspure-ready-lib-gate.sh
-# or: bash tests/e2e/ready-lib/run.sh
+bash src/scripts/fspure-ready-lib-gate.sh
+# or: bash src/tests/e2e/ready-lib/run.sh
 # or from this folder when nested in monorepo:
-bash scripts/ci-build-and-assert.sh   # auto-delegates to monorepo gate
+bash src/scripts/ci-build-and-assert.sh   # auto-delegates to monorepo gate
 ```
 
 Workflow: `e-St/fspure` → `.github/workflows/fspure-ready-lib-gate.yml`.
@@ -89,7 +89,7 @@ nuget.org `0.3.2` is analyzer-only and **cannot** embed pure.json.
 export FSPURE_ANALYZER_CHANNEL=github-latest
 export REQUIRE_GITHUB_PACKAGES=1
 export GITHUB_TOKEN=...   # packages:read
-bash scripts/ci-build-and-assert.sh
+bash src/scripts/ci-build-and-assert.sh
 ```
 
 Publishing `Fspure.ReadyLib` is optional (`Publish prerelease` workflow).
@@ -106,7 +106,7 @@ src/Fspure.ReadyLib/     # the publishable class library
 tests/AssertEmbed/       # PE reader: assert embedded pure.json
 tests/Consumer/          # PackageReference or ProjectReference (Phase 5 flag)
 tests/golden/            # pure-method contract for ReadyLib public surface
-scripts/                 # CI helpers; monorepo gate when nested
+src/scripts/                 # CI helpers; monorepo gate when nested
 .github/workflows/       # satellite CI / optional publish (marketing)
 Directory.Build.props    # turns embed on for the library
 ```
@@ -133,6 +133,6 @@ dotnet add package FSharp.PureAnalyzer
 ## Related
 
 - Main infrastructure: [e-St/fspure](https://github.com/e-St/fspure)  
-- Monorepo gate: `scripts/fspure-ready-lib-gate.sh` · `tests/e2e/ready-lib/`  
+- Monorepo gate: `src/scripts/fspure-ready-lib-gate.sh` · `src/tests/e2e/ready-lib/`  
 - Analyzer package: `FSharp.PureAnalyzer` (MSBuild targets + Ionide analyzer)  
 - Collector tool: `fspure-collector` (bundled inside the analyzer package `tools/`)  

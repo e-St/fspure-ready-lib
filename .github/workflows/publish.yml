@@ -48,14 +48,14 @@ jobs:
       - name: Auth e-St GitHub Packages
         run: |
           set -euo pipefail
-          chmod +x scripts/*.sh
-          bash scripts/use-github-packages.sh
+          chmod +x src/scripts/*.sh
+          bash src/scripts/use-github-packages.sh
 
       - name: Resolve analyzer + pack
         run: |
           set -euo pipefail
           mkdir -p artifacts/packages
-          chmod +x scripts/*.sh
+          chmod +x src/scripts/*.sh
 
           export FSPURE_ANALYZER_CHANNEL=github-latest
           export REQUIRE_GITHUB_PACKAGES=1
@@ -70,7 +70,7 @@ jobs:
             export FSPURE_ANALYZER_PINNED=0
           fi
 
-          ANALYZER_VERSION="$(bash scripts/resolve-fspure-analyzer-version.sh)"
+          ANALYZER_VERSION="$(bash src/scripts/resolve-fspure-analyzer-version.sh)"
           echo "Building against FSharp.PureAnalyzer $ANALYZER_VERSION"
 
           if [[ "$ANALYZER_VERSION" == "0.3.2" || "$ANALYZER_VERSION" != *-ci.* ]]; then
@@ -82,7 +82,7 @@ jobs:
           export FspureAnalyzerVersion="$ANALYZER_VERSION"
           export FSPURE_ANALYZER_PINNED=1
           export FspureReadyLibVersion="${{ github.event.inputs.version }}"
-          bash scripts/ci-build-and-assert.sh
+          bash src/scripts/ci-build-and-assert.sh
 
           # Ensure publish output is the requested version (script already packs it).
           ls -lh artifacts/packages
@@ -91,7 +91,7 @@ jobs:
         run: |
           set -euo pipefail
           NUPKG="$(ls artifacts/packages/Fspure.ReadyLib*.nupkg | head -1)"
-          bash scripts/assert-nupkg-embed.sh "$NUPKG"
+          bash src/scripts/assert-nupkg-embed.sh "$NUPKG"
 
       - name: Publish to GitHub Packages
         if: ${{ github.event.inputs.destination == 'github' || github.event.inputs.destination == 'both' }}

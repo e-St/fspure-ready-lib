@@ -54,8 +54,8 @@ jobs:
       - name: Auth e-St GitHub Packages
         run: |
           set -euo pipefail
-          chmod +x scripts/*.sh
-          bash scripts/use-github-packages.sh
+          chmod +x src/scripts/*.sh
+          bash src/scripts/use-github-packages.sh
 
       - name: Resolve analyzer (require -ci prerelease)
         id: analyzer
@@ -84,7 +84,7 @@ jobs:
             export FSPURE_ANALYZER_PINNED=0
           fi
 
-          VER="$(bash scripts/resolve-fspure-analyzer-version.sh)"
+          VER="$(bash src/scripts/resolve-fspure-analyzer-version.sh)"
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "FspureAnalyzerVersion=$VER" >> "$GITHUB_ENV"
           # Pack step may re-call resolve; keep the concrete version.
@@ -111,13 +111,13 @@ jobs:
         run: |
           set -euo pipefail
           # FspureAnalyzerVersion is the concrete -ci.* version from GITHUB_ENV
-          bash scripts/ci-build-and-assert.sh
+          bash src/scripts/ci-build-and-assert.sh
 
       - name: Assert nupkg embed
         run: |
           set -euo pipefail
           NUPKG="$(ls artifacts/packages/Fspure.ReadyLib*.nupkg | head -1)"
-          bash scripts/assert-nupkg-embed.sh "$NUPKG"
+          bash src/scripts/assert-nupkg-embed.sh "$NUPKG"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7

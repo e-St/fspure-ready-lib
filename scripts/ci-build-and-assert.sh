@@ -2,7 +2,7 @@
 # Build + pack Fspure.ReadyLib, assert embed, consumer diagnostics.
 #
 # Modes:
-#   1) Inside fspure monorepo → delegates to scripts/fspure-ready-lib-gate.sh (local feed).
+#   1) Inside fspure monorepo → delegates to src/scripts/fspure-ready-lib-gate.sh (local feed).
 #   2) Standalone satellite → restore FSharp.PureAnalyzer from channel, pack ReadyLib, hard asserts.
 #
 # Standalone channels (FSPURE_ANALYZER_CHANNEL):
@@ -14,12 +14,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 # --- Monorepo fast-path -------------------------------------------------------
-MONOREPO="$(cd "$ROOT/../.." 2>/dev/null && pwd || true)"
+MONOREPO="$(cd "$ROOT/../../.." 2>/dev/null && pwd || true)"
 if [[ -n "${MONOREPO:-}" \
-   && -f "$MONOREPO/scripts/fspure-ready-lib-gate.sh" \
+   && -f "$MONOREPO/src/scripts/fspure-ready-lib-gate.sh" \
    && -f "$MONOREPO/src/FSharp.PureAnalyzer/FSharp.PureAnalyzer.fsproj" ]]; then
-  echo "==> Monorepo detected — running scripts/fspure-ready-lib-gate.sh"
-  exec bash "$MONOREPO/scripts/fspure-ready-lib-gate.sh"
+  echo "==> Monorepo detected — running src/scripts/fspure-ready-lib-gate.sh"
+  exec bash "$MONOREPO/src/scripts/fspure-ready-lib-gate.sh"
 fi
 
 # --- Standalone satellite -----------------------------------------------------
@@ -29,7 +29,7 @@ CHANNEL="${FSPURE_ANALYZER_CHANNEL:-release}"
 PKG_DIR="$ROOT/artifacts/packages"
 mkdir -p "$PKG_DIR" "$ROOT/artifacts"
 
-chmod +x scripts/*.sh 2>/dev/null || true
+chmod +x src/scripts/*.sh 2>/dev/null || true
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 ok() { echo "OK: $*"; }
@@ -48,13 +48,13 @@ if [[ "$CHANNEL" == "github-latest" ]]; then
     fi
   fi
   if [[ -n "${GITHUB_TOKEN:-${GH_TOKEN:-${FSPURE_PACKAGES_READ_TOKEN:-}}}" ]]; then
-    bash scripts/use-github-packages.sh
+    bash src/scripts/use-github-packages.sh
   elif [[ "${REQUIRE_GITHUB_PACKAGES:-0}" == "1" ]]; then
     die "GITHUB_TOKEN or FSPURE_PACKAGES_READ_TOKEN required for channel=github-latest"
   fi
 fi
 
-ANALYZER_VERSION="$(bash scripts/resolve-fspure-analyzer-version.sh)"
+ANALYZER_VERSION="$(bash src/scripts/resolve-fspure-analyzer-version.sh)"
 export FspureAnalyzerVersion="$ANALYZER_VERSION"
 echo "Using FSharp.PureAnalyzer $ANALYZER_VERSION"
 

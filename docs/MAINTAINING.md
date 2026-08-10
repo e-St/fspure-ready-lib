@@ -8,13 +8,13 @@ This document is for **you** (the maintainer of `fspure-ready-lib`).
 
 | Role | Repository | Path |
 |------|------------|------|
-| **Source of truth** | [e-St/fspure](https://github.com/e-St/fspure) | `samples/fspure-ready-lib/` |
+| **Source of truth** | [e-St/fspure](https://github.com/e-St/fspure) | `src/samples/fspure-ready-lib/` |
 | **Public satellite** | [e-St/fspure-ready-lib](https://github.com/e-St/fspure-ready-lib) | repo root |
 
 The monorepo workflow **Sync fspure-ready-lib** updates this repo with **one synthetic commit** per sync (`sync from e-St/fspure@…`). That **push** still triggers **this** repo’s GitHub Actions (CI, pack, etc.).
 
 Full setup (PAT secret):  
-**https://github.com/e-St/fspure/blob/main/docs/SYNC-FSPURE-READY-LIB.md**
+**https://github.com/e-St/fspure/blob/main/src/docs/SYNC-FSPURE-READY-LIB.md**
 
 After each sync, see **`.fspure-sync-source`** for the monorepo commit SHA.
 
@@ -22,7 +22,7 @@ After each sync, see **`.fspure-sync-source`** for the monorepo commit SHA.
 
 ```bash
 # From a fspure checkout:
-cd samples/fspure-ready-lib
+cd src/samples/fspure-ready-lib
 # Option A: let the monorepo workflow push after you set FSPURE_READY_LIB_PUSH_TOKEN
 # Option B: manual first push
 git init -b main

@@ -47,14 +47,14 @@ jobs:
       - name: Pack + assert embed + consumer diagnostics
         run: |
           set -euo pipefail
-          chmod +x scripts/*.sh
-          bash scripts/ci-build-and-assert.sh
+          chmod +x src/scripts/*.sh
+          bash src/scripts/ci-build-and-assert.sh
 
       - name: Assert nupkg embed
         run: |
           set -euo pipefail
           NUPKG="$(ls artifacts/packages/Fspure.ReadyLib*.nupkg | head -1)"
-          bash scripts/assert-nupkg-embed.sh "$NUPKG"
+          bash src/scripts/assert-nupkg-embed.sh "$NUPKG"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
