@@ -1,5 +1,5 @@
 # Publish a prerelease Fspure.ReadyLib package.
-# Customer publish uses released analyzer from nuget.org (same as main CI).
+# Packs with a Phase 3 analyzer from GitHub Packages (-ci builds).
 name: Publish prerelease
 
 on:
@@ -10,7 +10,7 @@ on:
         required: true
         default: "0.1.0-preview.1"
       fspure_analyzer_version:
-        description: "Released FSharp.PureAnalyzer version (empty = Directory.Packages.props default)"
+        description: "FSharp.PureAnalyzer -ci.* version (empty = latest GH Packages)"
         required: false
         default: ""
       destination:
@@ -26,7 +26,11 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   CONFIGURATION: Release
-  FSPURE_ANALYZER_CHANNEL: release
+  FSPURE_ANALYZER_CHANNEL: github-latest
+  REQUIRE_GITHUB_PACKAGES: "1"
+  GITHUB_TOKEN: ${{ secrets.FSPURE_PACKAGES_READ_TOKEN || secrets.GITHUB_TOKEN }}
+  GH_TOKEN: ${{ secrets.FSPURE_PACKAGES_READ_TOKEN || secrets.GITHUB_TOKEN }}
+  FSPURE_PACKAGES_READ_TOKEN: ${{ secrets.FSPURE_PACKAGES_READ_TOKEN }}
 
 jobs:
   publish:
@@ -41,24 +45,46 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Pin analyzer version (optional)
-        if: ${{ github.event.inputs.fspure_analyzer_version != '' }}
-        run: echo "FspureAnalyzerVersion=${{ github.event.inputs.fspure_analyzer_version }}" >> "$GITHUB_ENV"
+      - name: Auth e-St GitHub Packages
+        run: |
+          set -euo pipefail
+          chmod +x scripts/*.sh
+          bash scripts/use-github-packages.sh
 
-      - name: Pack
+      - name: Resolve analyzer + pack
         run: |
           set -euo pipefail
           mkdir -p artifacts/packages
           chmod +x scripts/*.sh
+
+          export FSPURE_ANALYZER_CHANNEL=github-latest
+          export REQUIRE_GITHUB_PACKAGES=1
+
+          INPUT="${{ github.event.inputs.fspure_analyzer_version }}"
+          if [[ -n "${INPUT}" && "${INPUT}" != "latest" ]]; then
+            export FspureAnalyzerVersion="${INPUT}"
+            export FSPURE_ANALYZER_PINNED=1
+          else
+            unset FspureAnalyzerVersion || true
+            export FspureAnalyzerVersion=latest
+            export FSPURE_ANALYZER_PINNED=0
+          fi
+
           ANALYZER_VERSION="$(bash scripts/resolve-fspure-analyzer-version.sh)"
-          echo "Building against FSharp.PureAnalyzer $ANALYZER_VERSION (release channel)"
-          dotnet pack src/Fspure.ReadyLib/Fspure.ReadyLib.fsproj \
-            -c ${{ env.CONFIGURATION }} \
-            -o artifacts/packages \
-            --nologo \
-            "/p:Version=${{ github.event.inputs.version }}" \
-            "/p:PackageVersion=${{ github.event.inputs.version }}" \
-            "/p:FspureAnalyzerVersion=${ANALYZER_VERSION}"
+          echo "Building against FSharp.PureAnalyzer $ANALYZER_VERSION"
+
+          if [[ "$ANALYZER_VERSION" == "0.3.2" || "$ANALYZER_VERSION" != *-ci.* ]]; then
+            echo "ERROR: need a -ci.* Phase 3 analyzer (got $ANALYZER_VERSION)" >&2
+            exit 1
+          fi
+
+          # Full pack + embed + consumer asserts, then re-pack at the publish version.
+          export FspureAnalyzerVersion="$ANALYZER_VERSION"
+          export FSPURE_ANALYZER_PINNED=1
+          export FspureReadyLibVersion="${{ github.event.inputs.version }}"
+          bash scripts/ci-build-and-assert.sh
+
+          # Ensure publish output is the requested version (script already packs it).
           ls -lh artifacts/packages
 
       - name: Assert embed in nupkg
@@ -71,10 +97,13 @@ jobs:
         if: ${{ github.event.inputs.destination == 'github' || github.event.inputs.destination == 'both' }}
         run: |
           set -euo pipefail
-          dotnet nuget push artifacts/packages/*.nupkg \
-            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
-            --api-key "${{ secrets.GITHUB_TOKEN }}" \
-            --skip-duplicate
+          # Push only ReadyLib (not a local analyzer nupkg if any).
+          for f in artifacts/packages/Fspure.ReadyLib*.nupkg; do
+            dotnet nuget push "$f" \
+              --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+              --api-key "${{ secrets.GITHUB_TOKEN }}" \
+              --skip-duplicate
+          done
 
       - name: Publish to nuget.org
         if: ${{ github.event.inputs.destination == 'nuget.org' || github.event.inputs.destination == 'both' }}
@@ -86,13 +115,15 @@ jobs:
             echo "ERROR: NUGET_API_KEY secret is not set." >&2
             exit 1
           fi
-          dotnet nuget push artifacts/packages/*.nupkg \
-            --source https://api.nuget.org/v3/index.json \
-            --api-key "$NUGET_API_KEY" \
-            --skip-duplicate
+          for f in artifacts/packages/Fspure.ReadyLib*.nupkg; do
+            dotnet nuget push "$f" \
+              --source https://api.nuget.org/v3/index.json \
+              --api-key "$NUGET_API_KEY" \
+              --skip-duplicate
+          done
 
       - name: Upload nupkg artifact
         uses: actions/upload-artifact@v4
         with:
           name: nupkg
-          path: artifacts/packages/
+          path: artifacts/packages/Fspure.ReadyLib*.nupkg

@@ -58,33 +58,41 @@ Consumer wrappers that only call pure library APIs should get **PURE003**; wrapp
 
 ---
 
-## How CI proves this (local feed — the real gate)
+## How CI proves this
 
-**CI does not depend on nuget.org or GitHub Packages for the gate.**  
-The monorepo builds both packages into a local NuGet feed and asserts the full story:
+### Monorepo gate (source of truth)
+
+No external packages. Local NuGet feed only:
 
 ```text
 pack FSharp.PureAnalyzer  →  artifacts/local-feed/
 pack Fspure.ReadyLib      →  same feed (embeds pure.json)
-consumer restores ReadyLib nupkg
-fsharp-analyzers          →  hard-fail unless useAdd is PURE003 and useImpure is PURE002
+consumer + fsharp-analyzers → hard PURE003 / PURE002
 ```
 
-From the **fspure monorepo root**:
+```bash
+# From fspure monorepo root
+bash scripts/fspure-ready-lib-gate.sh
+# or: bash e2e/ready-lib/run.sh
+# or from this folder when nested in monorepo:
+bash scripts/ci-build-and-assert.sh   # auto-delegates to monorepo gate
+```
+
+Workflow: `e-St/fspure` → `.github/workflows/fspure-ready-lib-gate.yml`.
+
+### Satellite repo CI (this tree as a standalone repo)
+
+Uses a **Phase 3** `FSharp.PureAnalyzer` from **e-St GitHub Packages** (`*-ci.*` builds with `build/` + `tools/`).  
+nuget.org `0.3.2` is analyzer-only and **cannot** embed pure.json.
 
 ```bash
-bash scripts/fspure-ready-lib-gate.sh
-# same entrypoint:
-bash e2e/ready-lib/run.sh
-# from this folder (when nested in monorepo):
+export FSPURE_ANALYZER_CHANNEL=github-latest
+export REQUIRE_GITHUB_PACKAGES=1
+export GITHUB_TOKEN=...   # packages:read
 bash scripts/ci-build-and-assert.sh
 ```
 
-Workflow: `.github/workflows/fspure-ready-lib-gate.yml` on the monorepo.
-
-Artifacts: `artifacts/local-feed/*.nupkg`, `artifacts/fspure-ready-lib-gate/` (SARIF + stdout).
-
-Publishing packages to the internet is **optional** and is not required for a green gate.
+Publishing `Fspure.ReadyLib` is optional (`Publish prerelease` workflow).
 
 ---
 

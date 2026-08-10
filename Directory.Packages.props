@@ -7,7 +7,11 @@
   -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
-    <!-- Latest known released analyzer on nuget.org with Phase 3 embed targets. -->
+    <!--
+      Default pin is nuget.org 0.3.2 (analyzer-only — no MSBuild embed targets).
+      Satellite CI overrides this with a GitHub Packages *-ci.* Phase 3 build.
+      Monorepo gate packs a local 0.0.0-ci analyzer and never uses this pin.
+    -->
     <FspureAnalyzerVersion Condition="'$(FspureAnalyzerVersion)' == ''">0.3.2</FspureAnalyzerVersion>
     <FspureReadyLibVersion Condition="'$(FspureReadyLibVersion)' == ''">0.1.0-preview.1</FspureReadyLibVersion>
   </PropertyGroup>
