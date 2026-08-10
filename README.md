@@ -2,7 +2,7 @@
 
 Minimal **net10.0** F# library that is **fspure-ready**: building the package embeds a `pure.json` pure-method whitelist into the DLL so vanilla fspure users (FSharp.PureAnalyzer + VS Code decorations) get correct pure/impure labels when they call your API.
 
-This repository is the public, copy-paste template for library authors.
+This tree is the copy-paste template for library authors. Source of truth lives in the [fspure monorepo](https://github.com/e-St/fspure) under `samples/fspure-ready-lib/`.
 
 | | |
 |--|--|
@@ -18,12 +18,13 @@ In your **library** project (or `Directory.Build.props`):
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="FSharp.PureAnalyzer" Version="0.3.2" PrivateAssets="all" />
-  <!-- Sample CI resolves Version to the latest package on e-St GitHub Packages. -->
+  <PackageReference Include="FSharp.PureAnalyzer" Version="VERSION" PrivateAssets="all" />
 </ItemGroup>
 ```
 
-That single reference pulls MSBuild targets that, after each build:
+Use a `FSharp.PureAnalyzer` version that ships **MSBuild embed targets** (`build/FSharp.PureAnalyzer.targets` + `tools/purity-collector/`). That is the Phase 3+ package layout.
+
+That single reference pulls targets that, after each build:
 
 1. Run **purity-collector** on your DLL  
 2. Merge optional **`pure-extra.json`** next to the project  
@@ -31,7 +32,7 @@ That single reference pulls MSBuild targets that, after each build:
 
 `PrivateAssets="all"` keeps the analyzer out of **your** package graph so app authors are not forced to take it transitively.
 
-Optional escape hatch (this repo demonstrates it):
+Optional escape hatch (this sample demonstrates it):
 
 ```text
 src/YourLib/pure-extra.json   # merge author-claimed pure methods
@@ -49,11 +50,41 @@ Opt out for a project:
 
 | Library API | Expected label | Why |
 |-------------|----------------|-----|
-| `Api.add`, `Api.mul`, `Api.absInt`, `Api.clamp`, `Api.mapDouble`, `Api.sum` | **pure** | Collected into embedded pure.json |
-| `Api.manualEscapeHatch` | **pure** | Claimed via `pure-extra.json` merge |
+| `Api.add`, `Api.mul`, `Api.absInt`, `Api.clamp` | **pure** | Collected into embedded pure.json |
+| `Api.mapDouble`, `Api.sum`, `Api.manualEscapeHatch` | **pure** | Claimed via `pure-extra.json` merge (HOF / escape hatch) |
 | `Api.impureLog` | **impure** | Console I/O |
 
 Consumer wrappers that only call pure library APIs should get **PURE003**; wrappers that call `impureLog` should get **PURE002**.
+
+---
+
+## How CI proves this (local feed — the real gate)
+
+**CI does not depend on nuget.org or GitHub Packages for the gate.**  
+The monorepo builds both packages into a local NuGet feed and asserts the full story:
+
+```text
+pack FSharp.PureAnalyzer  →  artifacts/local-feed/
+pack Fspure.ReadyLib      →  same feed (embeds pure.json)
+consumer restores ReadyLib nupkg
+fsharp-analyzers          →  hard-fail unless useAdd is PURE003 and useImpure is PURE002
+```
+
+From the **fspure monorepo root**:
+
+```bash
+bash scripts/fspure-ready-lib-gate.sh
+# same entrypoint:
+bash e2e/ready-lib/run.sh
+# from this folder (when nested in monorepo):
+bash scripts/ci-build-and-assert.sh
+```
+
+Workflow: `.github/workflows/fspure-ready-lib-gate.yml` on the monorepo.
+
+Artifacts: `artifacts/local-feed/*.nupkg`, `artifacts/fspure-ready-lib-gate/` (SARIF + stdout).
+
+Publishing packages to the internet is **optional** and is not required for a green gate.
 
 ---
 
@@ -66,58 +97,22 @@ src/Fspure.ReadyLib/     # the publishable class library
   Fspure.ReadyLib.fsproj
 tests/AssertEmbed/       # PE reader: assert embedded pure.json
 tests/Consumer/          # restores packed package; used with fsharp-analyzers
-scripts/                 # CI helpers
-.github/workflows/       # CI + optional publish
+scripts/                 # thin wrappers → monorepo gate when nested
+.github/workflows/       # satellite CI / optional publish (marketing)
 Directory.Build.props    # turns embed on for the library
 ```
 
 ---
 
-## Local development
+## Optional: publish a prerelease (not a CI gate)
 
-**Prerequisites:** .NET **10** SDK, nuget.org access.
+When you want a public demo package:
 
-### Branches
+1. Ensure **FSharp.PureAnalyzer** with embed targets is on nuget.org (or your feed).  
+2. Pack and push `Fspure.ReadyLib` (satellite workflow **Publish prerelease**, or `dotnet nuget push` from monorepo `artifacts/local-feed/`).  
+3. Consumers: `dotnet add package Fspure.ReadyLib --version …`
 
-| Branch | Audience | `FSharp.PureAnalyzer` source | Workflow |
-|--------|----------|------------------------------|----------|
-| **`main`** | Customers / docs | **Released** packages on **nuget.org** | `CI` |
-| **`dev`** | Integration testing | **Latest** (incl. prerelease) on **e-St GitHub Packages** | `CI (dev)` |
-
-```bash
-# Customer path (same as main CI)
-export FSPURE_ANALYZER_CHANNEL=release
-# optional pin: export FspureAnalyzerVersion=0.3.2
-dotnet tool restore
-bash scripts/ci-build-and-assert.sh
-
-# Dev path (unreleased monorepo builds on GitHub Packages)
-export FSPURE_ANALYZER_CHANNEL=github-latest
-export GITHUB_TOKEN=ghp_...   # packages:read
-export FspureAnalyzerVersion=latest
-bash scripts/ci-build-and-assert.sh
-```
-
----
-
-## Publishing a prerelease (you manage this repo)
-
-1. Ensure **FSharp.PureAnalyzer** with Phase 3 targets is available on nuget.org or GitHub Packages.  
-2. In this repo: **Actions → Publish prerelease → Run workflow**.  
-3. Choose version (`0.1.0-preview.N`), analyzer version, and destination (`github` / `nuget.org` / `both`).  
-4. Secrets (on **this** repository):
-   - `NUGET_API_KEY` — nuget.org (if publishing there)
-   - `GITHUB_TOKEN` — automatic for GitHub Packages  
-
-Package id: **`Fspure.ReadyLib`**.
-
-Consumers:
-
-```bash
-dotnet add package Fspure.ReadyLib --version 0.1.0-preview.1
-```
-
-App authors who want labels also install fspure vanilla:
+App authors who want labels still install fspure vanilla:
 
 ```bash
 dotnet add package FSharp.PureAnalyzer
@@ -126,29 +121,9 @@ dotnet add package FSharp.PureAnalyzer
 
 ---
 
-## How to create the GitHub repository from this tree
-
-This folder is designed as the **root** of a standalone repo (e.g. `https://github.com/e-St/fspure-ready-lib`).
-
-```bash
-# From the fspure monorepo (or any checkout that contains samples/fspure-ready-lib)
-cd samples/fspure-ready-lib
-
-git init
-git add .
-git commit -m "Initial fspure-ready-lib sample (net10.0 + pure.json embed)"
-
-# Create empty repo on GitHub (gh CLI), then:
-gh repo create e-St/fspure-ready-lib --public --source=. --remote=origin --push
-# or: git remote add origin git@github.com:e-St/fspure-ready-lib.git && git push -u origin main
-```
-
-Keep this sample in sync with fspure Phase 3+ as needed; it is intentionally small and dependency-light.
-
----
-
 ## Related
 
 - Main infrastructure: [e-St/fspure](https://github.com/e-St/fspure)  
+- Monorepo gate: `scripts/fspure-ready-lib-gate.sh` · `e2e/ready-lib/`  
 - Analyzer package: `FSharp.PureAnalyzer` (MSBuild targets + Ionide analyzer)  
-- Collector tool: `purity-collector` (also bundled inside the analyzer package tools/)  
+- Collector tool: `purity-collector` (bundled inside the analyzer package `tools/`)  

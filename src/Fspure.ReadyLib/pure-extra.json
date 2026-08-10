@@ -9,6 +9,16 @@
       "fullName": "Fspure.ReadyLib.Api.manualEscapeHatch",
       "origin": "manual",
       "comment": "Demonstrates pure-extra.json merge: claim a method the collector heuristics may miss."
+    },
+    {
+      "fullName": "Fspure.ReadyLib.Api.mapDouble",
+      "origin": "manual",
+      "comment": "List.map is foundational pure; IL collector over this assembly alone may still miss the HOF chain."
+    },
+    {
+      "fullName": "Fspure.ReadyLib.Api.sum",
+      "origin": "manual",
+      "comment": "Same as mapDouble: fold/HOF surface claimed via merge."
     }
   ]
 }
