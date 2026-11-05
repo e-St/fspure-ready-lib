@@ -12,7 +12,7 @@
       Dev satellite CI may override with GitHub Packages *-ci.* builds.
       Monorepo gate packs a local 0.0.0-ci analyzer and never uses this pin.
     -->
-    <FspureAnalyzerVersion Condition="'$(FspureAnalyzerVersion)' == ''">0.4.2</FspureAnalyzerVersion>
+    <FspureAnalyzerVersion Condition="'$(FspureAnalyzerVersion)' == ''">0.4.3</FspureAnalyzerVersion>
     <FspureReadyLibVersion Condition="'$(FspureReadyLibVersion)' == ''">0.1.0-preview.1</FspureReadyLibVersion>
   </PropertyGroup>
 </Project>
