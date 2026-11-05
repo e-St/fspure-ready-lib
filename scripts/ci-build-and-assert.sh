@@ -29,7 +29,7 @@ CHANNEL="${FSPURE_ANALYZER_CHANNEL:-release}"
 PKG_DIR="$ROOT/artifacts/packages"
 mkdir -p "$PKG_DIR" "$ROOT/artifacts"
 
-chmod +x src/scripts/*.sh 2>/dev/null || true
+chmod +x "$ROOT/scripts/"*.sh
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 ok() { echo "OK: $*"; }
@@ -48,13 +48,13 @@ if [[ "$CHANNEL" == "github-latest" ]]; then
     fi
   fi
   if [[ -n "${GITHUB_TOKEN:-${GH_TOKEN:-${FSPURE_PACKAGES_READ_TOKEN:-}}}" ]]; then
-    bash src/scripts/use-github-packages.sh
+    bash "$ROOT/scripts/use-github-packages.sh"
   elif [[ "${REQUIRE_GITHUB_PACKAGES:-0}" == "1" ]]; then
     die "GITHUB_TOKEN or FSPURE_PACKAGES_READ_TOKEN required for channel=github-latest"
   fi
 fi
 
-ANALYZER_VERSION="$(bash src/scripts/resolve-fspure-analyzer-version.sh)"
+ANALYZER_VERSION="$(bash "$ROOT/scripts/resolve-fspure-analyzer-version.sh")"
 export FspureAnalyzerVersion="$ANALYZER_VERSION"
 echo "Using FSharp.PureAnalyzer $ANALYZER_VERSION"
 
